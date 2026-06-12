@@ -1,6 +1,7 @@
-# Use plain Python images for all architectures.
-# Keeps the add-on identical whether built by the HA Supervisor or plain Docker.
+# Official Home Assistant Alpine base images, pinned to Alpine 3.21.
+# Python is NOT included in these images - the Dockerfile installs
+# python3 + pip via apk, so the build also works if the Supervisor
+# falls back to its default base image.
 build_from:
-  amd64: python:3.12-slim
-  aarch64: python:3.12-slim
-  armv7: python:3.12-slim
+  amd64: ghcr.io/home-assistant/amd64-base:3.21
+  aarch64: ghcr.io/home-assistant/aarch64-base:3.21

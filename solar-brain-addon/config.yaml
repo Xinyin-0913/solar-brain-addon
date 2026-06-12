@@ -1,12 +1,11 @@
 name: Solar Brain
-version: "0.5.0"
+version: "0.5.1"
 slug: solar_brain
 description: Smart solar energy recommendations for your home (MVP)
 url: https://github.com/your-username/solar-brain-addons
 arch:
   - amd64
   - aarch64
-  - armv7
 init: false
 startup: application
 boot: auto

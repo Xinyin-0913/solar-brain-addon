@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.1
+
+**Build fix — installable on real Home Assistant.**
+
+- The Supervisor builds add-ons from Home Assistant's Alpine base images
+  (which ship no Python), so `pip3: not found` broke the install. The
+  Dockerfile now installs `python3` + `py3-pip` via `apk` and works
+  regardless of which base image the Supervisor passes.
+- `build.yaml` pins the official HA base images
+  (`ghcr.io/home-assistant/{amd64,aarch64}-base:3.21`, Alpine 3.21 =
+  Python 3.12).
+- Dropped `armv7`: our dependency `pydantic-core` publishes no armv7 musl
+  wheels, so the build cannot succeed there. Supported: amd64, aarch64
+  (Home Assistant Green, Yellow, RPi 4/5 64-bit).
+
 ## 0.5.0
 
 **Fully Home Assistant native.**

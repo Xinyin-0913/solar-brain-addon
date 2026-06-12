@@ -1,0 +1,5 @@
+# Local development artifacts - never ship these
+.venv/
+__pycache__/
+*.pyc
+solar-brain-addon/data/

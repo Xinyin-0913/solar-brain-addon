@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Solar Brain — Dashboard v2 (target)</title>
+<style>
+  :root {
+    --ha-bg: #111418; --ha-side: #1b1f24; --card: #1c2128; --border: #2a3140;
+    --text: #e8ebf0; --muted: #8a93a5; --accent: #f2b22d;
+    --blue: #18bcf2; --low: #3ecf8e; --solar: #ff9800; --batt: #4db6ac; --grid: #8a6fd1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", Roboto, system-ui, sans-serif; background: var(--ha-bg); color: var(--text); }
+  .shell { display: flex; height: 1010px; }
+  .sidebar { width: 232px; background: var(--ha-side); border-right: 1px solid var(--border); padding: 14px 10px; flex-shrink: 0; }
+  .sb-logo { display: flex; align-items: center; gap: 10px; padding: 8px 10px 20px; font-weight: 600; font-size: 15px; }
+  .sb-logo .ha-dot { width: 28px; height: 28px; border-radius: 50%; background: var(--blue); display: flex; align-items: center; justify-content: center; color: #06283a; font-weight: 700; }
+  .sb-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: #aeb6c2; font-size: 14px; margin-bottom: 2px; }
+  .sb-item .ic { width: 20px; text-align: center; opacity: .85; }
+  .sb-item.active { background: rgba(242,178,45,.14); color: var(--accent); font-weight: 600; }
+  .sb-bottom { margin-top: 330px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .avatar { width: 26px; height: 26px; border-radius: 50%; background: #3a4555; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+
+  .main { flex: 1; display: flex; flex-direction: column; }
+  .topbar { height: 56px; display: flex; align-items: center; gap: 14px; padding: 0 28px; border-bottom: 1px solid var(--border); background: #14181d; }
+  .topbar h1 { font-size: 17px; font-weight: 600; }
+  .tabs { display: flex; gap: 22px; margin-left: 26px; font-size: 13.5px; color: var(--muted); height: 100%; }
+  .tab { display: flex; align-items: center; border-bottom: 2px solid transparent; padding: 0 2px; }
+  .tab.on { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .pill { margin-left: auto; font-size: 12px; color: var(--low); background: rgba(62,207,142,.12); padding: 4px 12px; border-radius: 999px; font-weight: 600; }
+
+  .content { padding: 24px 28px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; align-content: start; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; }
+  .card h3 { font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  .span2 { grid-column: 1 / -1; }
+
+  /* energy flow */
+  .flow { position: relative; height: 270px; }
+  .node { position: absolute; width: 86px; height: 86px; border-radius: 50%; border: 2.5px solid; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #181d24; }
+  .node .nv { font-size: 14px; font-weight: 700; margin-top: 2px; }
+  .node .nl { font-size: 10px; color: var(--muted); }
+  .node .em { font-size: 16px; }
+  .n-solar { left: 187px; top: 0; border-color: var(--solar); }
+  .n-home  { left: 330px; top: 95px; border-color: var(--accent); }
+  .n-grid  { left: 44px;  top: 95px; border-color: var(--grid); }
+  .n-batt  { left: 187px; top: 184px; border-color: var(--batt); }
+  .flow svg { position: absolute; inset: 0; }
+  .fl { font-size: 11px; fill: var(--muted); }
+
+  /* today stats */
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .stat { background: #181d24; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .stat .sl { font-size: 11.5px; color: var(--muted); margin-bottom: 5px; }
+  .stat .sv { font-size: 21px; font-weight: 700; }
+  .sv.solar { color: var(--solar); } .sv.eur { color: var(--low); } .sv.batt { color: var(--batt); }
+  .stat .sd { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+  /* chart */
+  .legend { display: flex; gap: 18px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+
+  /* recommendations */
+  .rec-now { display: flex; gap: 14px; align-items: flex-start; background: rgba(242,178,45,.08); border: 1px solid rgba(242,178,45,.35); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
+  .rec-now .em { font-size: 22px; }
+  .rec-now b { display: block; font-size: 15px; margin-bottom: 3px; }
+  .rec-now span { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  .tl { list-style: none; }
+  .tl li { display: flex; gap: 12px; padding: 8px 2px; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid #232a35; }
+  .tl li:last-child { border-bottom: none; }
+  .tl .t { color: #5f6877; width: 42px; flex-shrink: 0; }
+  .tl .ok { color: var(--low); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="sb-logo"><div class="ha-dot">⌂</div> Home Assistant</div>
+    <div class="sb-item"><span class="ic">▦</span> Overview</div>
+    <div class="sb-item"><span class="ic">⚡</span> Energy</div>
+    <div class="sb-item"><span class="ic">▤</span> History</div>
+    <div class="sb-item"><span class="ic">≣</span> Logbook</div>
+    <div class="sb-item active"><span class="ic">☀</span> Solar Brain</div>
+    <div class="sb-bottom">
+      <div class="sb-item"><span class="ic">⚙</span> Settings</div>
+      <div class="sb-item"><span class="avatar">H</span> Huan</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1>Solar Brain</h1>
+      <div class="tabs">
+        <div class="tab on">Overview</div><div class="tab">Savings</div><div class="tab">History</div><div class="tab">Settings</div>
+      </div>
+      <div class="pill">● All sensors healthy</div>
+    </div>
+
+    <div class="content">
+      <div class="card">
+        <h3>Energy flow · now</h3>
+        <div class="flow">
+          <svg width="460" height="270">
+            <path d="M 230 88 L 230 182" stroke="#4db6ac" stroke-width="2.5" fill="none"/>
+            <path d="M 262 70 C 320 90, 330 100, 348 110" stroke="#ff9800" stroke-width="2.5" fill="none"/>
+            <path d="M 198 70 C 140 90, 130 100, 112 110" stroke="#3ecf8e" stroke-width="2.5" fill="none"/>
+            <circle cx="230" cy="135" r="3.5" fill="#4db6ac"/>
+            <circle cx="305" cy="88"  r="3.5" fill="#ff9800"/>
+            <circle cx="155" cy="88"  r="3.5" fill="#3ecf8e"/>
+            <text x="244" y="140" class="fl">1.05 kW</text>
+            <text x="296" y="74" class="fl">1.62 kW</text>
+            <text x="110" y="74" class="fl">1.64 kW</text>
+          </svg>
+          <div class="node n-solar"><span class="em">☀</span><span class="nv">4.31 kW</span><span class="nl">Solar</span></div>
+          <div class="node n-home"><span class="em">⌂</span><span class="nv">1.62 kW</span><span class="nl">Home</span></div>
+          <div class="node n-grid"><span class="em">⚡</span><span class="nv">→ 1.64 kW</span><span class="nl">Grid export</span></div>
+          <div class="node n-batt"><span class="em">▮</span><span class="nv">86 %</span><span class="nl">charging</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Today · Thu 12 June</h3>
+        <div class="stats">
+          <div class="stat"><div class="sl">Solar produced</div><div class="sv solar">14.2 kWh</div><div class="sd">forecast 21.4 kWh</div></div>
+          <div class="stat"><div class="sl">Saved today</div><div class="sv eur">€ 2.84</div><div class="sd">€ 17.20 this week</div></div>
+          <div class="stat"><div class="sl">Self-sufficiency</div><div class="sv batt">78 %</div><div class="sd">↑ 6 % vs last week</div></div>
+          <div class="stat"><div class="sl">Consumed</div><div class="sv">9.8 kWh</div><div class="sd">2.2 kWh from grid</div></div>
+        </div>
+      </div>
+
+      <div class="card span2">
+        <h3>Production vs. consumption</h3>
+        <div class="legend">
+          <span><span class="dot" style="background:#ff9800"></span>Solar</span>
+          <span><span class="dot" style="background:#8a93a5"></span>Home load</span>
+          <span><span class="dot" style="background:#f2b22d"></span>now</span>
+        </div>
+        <svg width="100%" height="170" viewBox="0 0 980 170" preserveAspectRatio="none">
+          <line x1="0" y1="150" x2="980" y2="150" stroke="#2a3140"/>
+          <line x1="0" y1="95"  x2="980" y2="95"  stroke="#222a34" stroke-dasharray="4 5"/>
+          <line x1="0" y1="40"  x2="980" y2="40"  stroke="#222a34" stroke-dasharray="4 5"/>
+          <path d="M 60 150 C 200 140, 280 30, 430 18 C 540 10, 650 60, 800 120 C 860 142, 900 148, 930 150"
+                fill="rgba(255,152,0,.16)" stroke="#ff9800" stroke-width="2.5"/>
+          <path d="M 0 122 C 90 112, 130 128, 200 124 C 320 118, 420 132, 520 126 C 640 120, 700 96, 790 92 C 870 90, 920 108, 980 104"
+                fill="none" stroke="#8a93a5" stroke-width="2"/>
+          <line x1="520" y1="10" x2="520" y2="150" stroke="#f2b22d" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <text x="20"  y="166" fill="#5f6877" font-size="11">06:00</text>
+          <text x="250" y="166" fill="#5f6877" font-size="11">09:00</text>
+          <text x="500" y="166" fill="#5f6877" font-size="11">12:43</text>
+          <text x="730" y="166" fill="#5f6877" font-size="11">18:00</text>
+          <text x="930" y="166" fill="#5f6877" font-size="11">21:00</text>
+          <text x="6" y="44"  fill="#5f6877" font-size="11">4 kW</text>
+          <text x="6" y="99"  fill="#5f6877" font-size="11">2 kW</text>
+        </svg>
+      </div>
+
+      <div class="card span2">
+        <h3>Advisor</h3>
+        <div class="rec-now">
+          <span class="em">☀</span>
+          <div>
+            <b>Peak solar window — run heavy appliances now</b>
+            <span>Battery reaches 100 % around 14:10. After that, 1.6 kW would flow to the grid at € 0.08/kWh — running the dishwasher and washing machine now uses it at € 0.32/kWh value instead. Estimated benefit: € 0.61.</span>
+          </div>
+        </div>
+        <ul class="tl">
+          <li><span class="t">11:02</span><span class="ok">✓</span> Battery charging prioritized — cloudy afternoon expected after 16:00</li>
+          <li><span class="t">09:15</span><span class="ok">✓</span> Quiet hours ended — resumed normal strategy</li>
+          <li><span class="t">06:40</span><span class="ok">✓</span> Morning plan: sunny until 16:00, est. 21.4 kWh — battery full by ~14:00</li>
+        </ul>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Solar Brain — Dashboard v1</title>
+<style>
+  :root {
+    --ha-bg: #111418; --ha-side: #1b1f24; --card: #1c2128; --border: #2a3140;
+    --text: #e8ebf0; --muted: #8a93a5; --accent: #f2b22d;
+    --blue: #18bcf2; --low: #3ecf8e; --solar: #ff9800; --batt: #4db6ac;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", Roboto, system-ui, sans-serif; background: var(--ha-bg); color: var(--text); }
+  .shell { display: flex; height: 880px; }
+
+  /* ── HA sidebar ── */
+  .sidebar { width: 232px; background: var(--ha-side); border-right: 1px solid var(--border); padding: 14px 10px; flex-shrink: 0; }
+  .sb-logo { display: flex; align-items: center; gap: 10px; padding: 8px 10px 20px; font-weight: 600; font-size: 15px; }
+  .sb-logo .ha-dot { width: 28px; height: 28px; border-radius: 50%; background: var(--blue); display: flex; align-items: center; justify-content: center; color: #06283a; font-size: 15px; font-weight: 700; }
+  .sb-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: #aeb6c2; font-size: 14px; margin-bottom: 2px; }
+  .sb-item .ic { width: 20px; text-align: center; opacity: .85; }
+  .sb-item.active { background: rgba(242,178,45,.14); color: var(--accent); font-weight: 600; }
+  .sb-bottom { margin-top: 330px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .avatar { width: 26px; height: 26px; border-radius: 50%; background: #3a4555; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+
+  /* ── Main ── */
+  .main { flex: 1; display: flex; flex-direction: column; }
+  .topbar { height: 56px; display: flex; align-items: center; gap: 14px; padding: 0 28px; border-bottom: 1px solid var(--border); background: #14181d; }
+  .topbar h1 { font-size: 17px; font-weight: 600; }
+  .topbar .crumb { color: var(--muted); font-size: 13px; }
+  .content { padding: 28px; max-width: 860px; width: 100%; margin: 0 auto; overflow: hidden; }
+
+  .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
+  .logo { width: 46px; height: 46px; border-radius: 12px; background: linear-gradient(135deg, #f2b22d, #f28a2d); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .brand h2 { font-size: 21px; font-weight: 600; }
+  .brand small { color: var(--muted); font-size: 12px; display: block; margin-top: 2px; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; margin-bottom: 18px; }
+  .card h3 { font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .value { font-size: 17px; font-weight: 600; }
+  .value .unit { font-size: 12px; color: var(--muted); font-weight: 400; }
+  .value.solar { color: var(--solar); } .value.batt { color: var(--batt); } .value.export { color: var(--low); }
+
+  .rec-text { font-size: 19px; font-weight: 600; margin-bottom: 8px; }
+  .rec-reason { color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .badge { display: inline-block; margin-top: 14px; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(62,207,142,.13); color: var(--low); }
+
+  .foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .foot span { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="sb-logo"><div class="ha-dot">⌂</div> Home Assistant</div>
+    <div class="sb-item"><span class="ic">▦</span> Overview</div>
+    <div class="sb-item"><span class="ic">⚡</span> Energy</div>
+    <div class="sb-item"><span class="ic">▤</span> History</div>
+    <div class="sb-item"><span class="ic">≣</span> Logbook</div>
+    <div class="sb-item active"><span class="ic">☀</span> Solar Brain</div>
+    <div class="sb-bottom">
+      <div class="sb-item"><span class="ic">⚙</span> Settings</div>
+      <div class="sb-item"><span class="avatar">H</span> Huan</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar"><h1>Solar Brain</h1><span class="crumb">add-on · v0.2.0 · running</span></div>
+    <div class="content">
+      <div class="brand">
+        <div class="logo">☀</div>
+        <div><h2>Solar Brain</h2><small>Smart solar energy advisor</small></div>
+      </div>
+
+      <div class="card">
+        <h3>Live telemetry</h3>
+        <div class="grid3">
+          <div><div class="label">Solar</div><div class="value solar">4.31 <span class="unit">kW</span></div></div>
+          <div><div class="label">Battery</div><div class="value batt">86 <span class="unit">%</span></div></div>
+          <div><div class="label">Home load</div><div class="value">1.62 <span class="unit">kW</span></div></div>
+          <div><div class="label">Grid import</div><div class="value">0 <span class="unit">W</span></div></div>
+          <div><div class="label">Grid export</div><div class="value export">1.64 <span class="unit">kW</span></div></div>
+          <div><div class="label">EV charging</div><div class="value">0 <span class="unit">W</span></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Recommendation</h3>
+        <div class="rec-text">Peak solar window. Use solar energy now.</div>
+        <div class="rec-reason">Current hour (12:00) is inside the solar window (10:00–15:00). Battery is nearly full — heavy appliances will run almost entirely on solar.</div>
+        <span class="badge">risk: low</span>
+      </div>
+
+      <div class="card">
+        <h3>Status</h3>
+        <div class="grid3">
+          <div><div class="label">Add-on</div><div class="value">running</div></div>
+          <div><div class="label">Time</div><div class="value">12 Jun 2026, 12:43</div></div>
+          <div><div class="label">Location</div><div class="value">52.5200, 13.4050</div></div>
+        </div>
+      </div>
+
+      <div class="foot"><span>Entity mapping</span> · /api/status · /api/recommendation · /api/telemetry/current</div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

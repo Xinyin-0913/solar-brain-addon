@@ -1,0 +1,42 @@
+name: Solar Brain
+version: "0.5.0"
+slug: solar_brain
+description: Smart solar energy recommendations for your home (MVP)
+url: https://github.com/your-username/solar-brain-addons
+arch:
+  - amd64
+  - aarch64
+  - armv7
+init: false
+startup: application
+boot: auto
+homeassistant_api: true
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:solar-power
+panel_title: Solar Brain
+ports:
+  8099/tcp: null
+ports_description:
+  8099/tcp: Optional direct access to dashboard and REST API (ingress is used by default)
+webui: "http://[HOST]:[PORT:8099]"
+# NOTE: no home_assistant_url / home_assistant_token options - API access is
+# provided automatically by the Supervisor (homeassistant_api: true above).
+options:
+  latitude: 0.0
+  longitude: 0.0
+  electricity_import_price_eur_per_kwh: 0.30
+  feed_in_tariff_eur_per_kwh: 0.08
+  system_cost_eur: 0.0
+  installation_date: ""
+  openrouter_api_key: ""
+  enable_ai: false
+schema:
+  latitude: float
+  longitude: float
+  electricity_import_price_eur_per_kwh: float
+  feed_in_tariff_eur_per_kwh: float
+  system_cost_eur: float
+  installation_date: str?
+  openrouter_api_key: password?
+  enable_ai: bool

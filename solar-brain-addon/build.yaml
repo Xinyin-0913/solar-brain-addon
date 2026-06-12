@@ -1,0 +1,6 @@
+# Use plain Python images for all architectures.
+# Keeps the add-on identical whether built by the HA Supervisor or plain Docker.
+build_from:
+  amd64: python:3.12-slim
+  aarch64: python:3.12-slim
+  armv7: python:3.12-slim

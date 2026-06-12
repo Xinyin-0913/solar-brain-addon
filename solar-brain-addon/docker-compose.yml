@@ -1,0 +1,15 @@
+services:
+  solar-brain:
+    build: .
+    container_name: solar-brain
+    ports:
+      - "8099:8099"
+    environment:
+      # All optional - the add-on falls back to stub data without them.
+      HOME_ASSISTANT_URL: ""
+      HOME_ASSISTANT_TOKEN: ""
+      LATITUDE: "0"
+      LONGITUDE: "0"
+      OPENROUTER_API_KEY: ""
+      ENABLE_AI: "false"
+    restart: unless-stopped

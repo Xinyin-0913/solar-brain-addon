@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Solar Brain — Savings</title>
+<style>
+  :root {
+    --ha-bg: #111418; --ha-side: #1b1f24; --card: #1c2128; --border: #2a3140;
+    --text: #e8ebf0; --muted: #8a93a5; --accent: #f2b22d;
+    --blue: #18bcf2; --low: #3ecf8e; --solar: #ff9800; --batt: #4db6ac;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", Roboto, system-ui, sans-serif; background: var(--ha-bg); color: var(--text); }
+  .shell { display: flex; height: 880px; }
+  .sidebar { width: 232px; background: var(--ha-side); border-right: 1px solid var(--border); padding: 14px 10px; flex-shrink: 0; }
+  .sb-logo { display: flex; align-items: center; gap: 10px; padding: 8px 10px 20px; font-weight: 600; font-size: 15px; }
+  .sb-logo .ha-dot { width: 28px; height: 28px; border-radius: 50%; background: var(--blue); display: flex; align-items: center; justify-content: center; color: #06283a; font-weight: 700; }
+  .sb-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: #aeb6c2; font-size: 14px; margin-bottom: 2px; }
+  .sb-item .ic { width: 20px; text-align: center; opacity: .85; }
+  .sb-item.active { background: rgba(242,178,45,.14); color: var(--accent); font-weight: 600; }
+  .sb-bottom { margin-top: 330px; border-top: 1px solid var(--border); padding-top: 10px; }
+  .avatar { width: 26px; height: 26px; border-radius: 50%; background: #3a4555; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+
+  .main { flex: 1; display: flex; flex-direction: column; }
+  .topbar { height: 56px; display: flex; align-items: center; gap: 14px; padding: 0 28px; border-bottom: 1px solid var(--border); background: #14181d; }
+  .topbar h1 { font-size: 17px; font-weight: 600; }
+  .tabs { display: flex; gap: 22px; margin-left: 26px; font-size: 13.5px; color: var(--muted); height: 100%; }
+  .tab { display: flex; align-items: center; border-bottom: 2px solid transparent; }
+  .tab.on { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .pro { margin-left: auto; font-size: 11.5px; font-weight: 700; color: #14171c; background: linear-gradient(135deg, #f2b22d, #f28a2d); padding: 4px 12px; border-radius: 999px; }
+
+  .content { padding: 26px 28px; display: grid; grid-template-columns: 1.25fr 1fr; gap: 18px; align-content: start; max-width: 1040px; margin: 0 auto; width: 100%; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; }
+  .card h3 { font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+  .span2 { grid-column: 1 / -1; }
+
+  .hero { display: flex; align-items: baseline; gap: 16px; margin-bottom: 4px; }
+  .hero .big { font-size: 44px; font-weight: 800; color: var(--low); }
+  .hero .cmp { font-size: 13px; color: var(--low); background: rgba(62,207,142,.1); padding: 3px 10px; border-radius: 999px; }
+  .hsub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+  .bars { display: flex; align-items: flex-end; gap: 26px; height: 150px; padding: 0 6px; border-bottom: 1px solid var(--border); }
+  .b { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 7px; justify-content: flex-end; height: 100%; }
+  .b .v { font-size: 11px; color: var(--muted); }
+  .b .bar { width: 100%; border-radius: 6px 6px 0 0; background: linear-gradient(180deg, #3ecf8e, #2a9d6f); }
+  .b.today .bar { background: linear-gradient(180deg, #f2b22d, #f28a2d); }
+  .b .d { font-size: 11px; color: #5f6877; }
+  .b.today .d { color: var(--accent); font-weight: 700; }
+
+  .brk { list-style: none; }
+  .brk li { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #232a35; font-size: 13.5px; }
+  .brk li:last-child { border-bottom: none; }
+  .brk .em { width: 30px; height: 30px; border-radius: 8px; background: #181d24; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .brk .bl b { display: block; font-size: 13.5px; }
+  .brk .bl span { font-size: 11.5px; color: var(--muted); }
+  .brk .amt { margin-left: auto; font-weight: 700; color: var(--low); }
+
+  .meta { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .ms { background: #181d24; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .ms .l { font-size: 11.5px; color: var(--muted); margin-bottom: 5px; }
+  .ms .v { font-size: 19px; font-weight: 700; }
+  .note { grid-column: 1 / -1; font-size: 11.5px; color: #5f6877; line-height: 1.5; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="sb-logo"><div class="ha-dot">⌂</div> Home Assistant</div>
+    <div class="sb-item"><span class="ic">▦</span> Overview</div>
+    <div class="sb-item"><span class="ic">⚡</span> Energy</div>
+    <div class="sb-item"><span class="ic">▤</span> History</div>
+    <div class="sb-item"><span class="ic">≣</span> Logbook</div>
+    <div class="sb-item active"><span class="ic">☀</span> Solar Brain</div>
+    <div class="sb-bottom">
+      <div class="sb-item"><span class="ic">⚙</span> Settings</div>
+      <div class="sb-item"><span class="avatar">H</span> Huan</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1>Solar Brain</h1>
+      <div class="tabs">
+        <div class="tab">Overview</div><div class="tab on">Savings</div><div class="tab">History</div><div class="tab">Settings</div>
+      </div>
+      <div class="pro">PRO</div>
+    </div>
+
+    <div class="content">
+      <div class="card">
+        <h3>This week · 8 – 12 June</h3>
+        <div class="hero"><span class="big">€ 17.20</span><span class="cmp">↑ 12 % vs last week</span></div>
+        <div class="hsub">saved by following Solar Brain recommendations · 41 of 47 followed</div>
+        <div class="bars">
+          <div class="b"><span class="v">€2.95</span><div class="bar" style="height:62%"></div><span class="d">Mon</span></div>
+          <div class="b"><span class="v">€3.40</span><div class="bar" style="height:72%"></div><span class="d">Tue</span></div>
+          <div class="b"><span class="v">€4.12</span><div class="bar" style="height:88%"></div><span class="d">Wed</span></div>
+          <div class="b"><span class="v">€3.89</span><div class="bar" style="height:82%"></div><span class="d">Thu</span></div>
+          <div class="b today"><span class="v">€2.84</span><div class="bar" style="height:60%"></div><span class="d">today</span></div>
+          <div class="b"><span class="v">–</span><div class="bar" style="height:3%"></div><span class="d">Sat</span></div>
+          <div class="b"><span class="v">–</span><div class="bar" style="height:3%"></div><span class="d">Sun</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Where the savings came from</h3>
+        <ul class="brk">
+          <li><span class="em">☀</span><div class="bl"><b>Load shifting into solar hours</b><span>dishwasher, washing machine, water heater</span></div><span class="amt">€ 8.10</span></li>
+          <li><span class="em">▮</span><div class="bl"><b>Smarter battery timing</b><span>held charge for the evening peak price</span></div><span class="amt">€ 5.65</span></li>
+          <li><span class="em">⚡</span><div class="bl"><b>Avoided grid peaks</b><span>delayed EV charge past the 18–20 h tariff</span></div><span class="amt">€ 2.75</span></li>
+          <li><span class="em">⛈</span><div class="bl"><b>Storm safe-mode</b><span>1 event · tracker parked, no damage risk</span></div><span class="amt">priceless</span></li>
+        </ul>
+      </div>
+
+      <div class="card span2">
+        <h3>Running totals</h3>
+        <div class="meta">
+          <div class="ms"><div class="l">June so far</div><div class="v">€ 31.60</div></div>
+          <div class="ms"><div class="l">Since install (9 Apr)</div><div class="v">€ 64.85</div></div>
+          <div class="ms"><div class="l">Projected / year</div><div class="v">≈ € 270</div></div>
+          <div class="note">Estimates compare your actual energy flows against a baseline without recommendations, using your tariff (€ 0.32/kWh import · € 0.08/kWh feed-in). Methodology: docs/savings.md</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

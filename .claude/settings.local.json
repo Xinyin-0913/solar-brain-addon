@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(python --version)",
+      "PowerShell(docker --version)",
+      "PowerShell(Start-Sleep -Seconds 4; \\(Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8099/health\\).Content; \\(Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8099/api/status\\).Content; \\(Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8099/api/recommendation\\).Content)",
+      "PowerShell($paths = \"C:\\\\Program Files \\(x86\\)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\", \"C:\\\\Program Files\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\"; foreach \\($p in $paths\\) { if \\(Test-Path $p\\) { Write-Output \"FOUND: $p\" } })",
+      "PowerShell(Start-Sleep -Seconds 4; $edge = \"C:\\\\Program Files \\(x86\\)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\"; & $edge --headless=new --disable-gpu --hide-scrollbars --window-size=\"900,1100\" --virtual-time-budget=4000 --screenshot=\"$env:TEMP\\\\sb_savings_page.png\" \"http://127.0.0.1:8099/savings\" 2>$null | Out-Null; Get-Item \"$env:TEMP\\\\sb_savings_page.png\" | Select-Object Length)",
+      "PowerShell($conn = Get-NetTCPConnection -LocalPort 8099 -State Listen -ErrorAction SilentlyContinue; if \\($conn\\) { $conn | ForEach-Object { Write-Output \"Killing PID $\\($_.OwningProcess\\)\"; Stop-Process -Id $_.OwningProcess -Force -Confirm:$false } } else { Write-Output \"port free\" })"
+    ]
+  }
+}

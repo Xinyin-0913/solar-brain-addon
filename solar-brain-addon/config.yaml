@@ -3,7 +3,7 @@ name: Smart Home Energy
 version: "0.7.0"
 slug: solar_brain
 description: Smart home energy management for Home Assistant (solar/PV optional)
-url: url: https://github.com/Xinyin-0913/solar-brain-addon
+url: https://github.com/Xinyin-0913/solar-brain-addon
 arch:
   - amd64
   - aarch64

@@ -242,6 +242,28 @@ class SavingsSummary(BaseModel):
 # Device types classified from HA entity domain/unit/device_class.
 DEVICE_TYPES = ["light", "switch", "power_sensor", "energy_sensor", "motion", "battery"]
 
+# Appliance types a user can assign to a controllable device (metadata + UI hint).
+APPLIANCE_TYPES = [
+    "light", "smart_plug", "tv", "coffee_machine", "heater",
+    "air_purifier", "router", "custom",
+]
+
+
+class DeviceProfile(BaseModel):
+    """User overrides for one controllable device (light.* / switch.*)."""
+
+    entity_id: str
+    display_name: str | None = None
+    appliance_type: str = "custom"
+    rated_power_w: float | None = None       # override wattage for estimated mode
+    estimation_enabled: bool = True          # False -> monitoring only, no cost
+
+
+class DeviceProfilesUpdate(BaseModel):
+    """Request body for POST /api/devices/profiles."""
+
+    profiles: list[DeviceProfile]
+
 
 class DeviceUsage(BaseModel):
     """One device row in the Smart Home Energy table."""
@@ -249,7 +271,8 @@ class DeviceUsage(BaseModel):
     entity_id: str
     name: str
     device_type: str               # one of DEVICE_TYPES
-    mode: str                      # "measured" | "estimated" | "none"
+    appliance_type: str | None = None  # from profile, else derived
+    mode: str                      # measured | estimated | monitoring | none
     estimated_wattage: float | None  # configured W for estimated devices
     current_power_w: float | None    # live; None for cumulative energy sensors
     today_kwh: float
@@ -257,6 +280,15 @@ class DeviceUsage(BaseModel):
     today_cost_eur: float
     month_cost_eur: float
     note: str = ""                 # e.g. "battery powered - no grid cost"
+
+
+class HomeRecommendation(BaseModel):
+    """Smart-home energy recommendation derived from device data (no fake savings)."""
+
+    text: str
+    detail: str = ""
+    severity: str = "info"         # "info" | "warning"
+    action_url: str | None = None  # relative link for a suggested action
 
 
 class DevicesResponse(BaseModel):

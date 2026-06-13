@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["SOLAR_BRAIN_DATA_DIR"] = tempfile.mkdtemp(prefix="solar_brain_devices_")
 
 from app import database, devices  # noqa: E402
-from app.models import AddonConfig  # noqa: E402
+from app.models import AddonConfig, DeviceProfile  # noqa: E402
 
 CFG = AddonConfig(electricity_import_price_eur_per_kwh=0.30,
                   default_wattage_light=9.0,
@@ -159,6 +159,75 @@ def test_gap_capping_in_device_integration():
     print("PASS gap capping in device integration")
 
 
+def test_unmapped_generation_sensor_excluded():
+    """Obvious generation/feed-in sensors are never consuming devices."""
+    generation = [
+        state("sensor.solaredge_pv_power", "3200", unit="W", device_class="power"),
+        state("sensor.solar_production", "2.5", unit="kW", device_class="power"),
+        state("sensor.pv_generation_today", "12", unit="kWh", device_class="energy"),
+        state("sensor.inverter_power", "500", unit="W", device_class="power"),
+        state("sensor.grid_export_power", "100", unit="W", device_class="power"),
+    ]
+    for st in generation:
+        assert devices.classify_device(st, CFG) is None, st["entity_id"]
+    # Real consumption sensors are still kept.
+    assert devices.classify_device(
+        state("sensor.fridge_power", "120", unit="W", device_class="power"), CFG
+    )["device_type"] == "power_sensor"
+    assert devices.classify_device(
+        state("sensor.grid_import_power", "450", unit="W", device_class="power"), CFG
+    )["device_type"] == "power_sensor"
+    # A battery named "solar ..." stays a (no-cost) battery, not excluded.
+    batt = devices.classify_device(
+        state("sensor.solar_battery_level", "80", unit="%", device_class="battery"), CFG)
+    assert batt["device_type"] == "battery", batt
+    print("PASS unmapped generation sensor excluded from consumption")
+
+
+def test_mapped_pv_entity_excluded():
+    """An entity mapped to the solar/PV module is excluded from the device list."""
+    excluded = {"sensor.house_main_power"}
+    st = state("sensor.house_main_power", "3000", unit="W", device_class="power")
+    assert devices.classify_device(st, CFG, None, excluded) is None
+    # discover_devices drops it but keeps a normal device.
+    found = devices.discover_devices(
+        [st, state("light.kitchen", "on")], CFG, {}, excluded)
+    assert {d["entity_id"] for d in found} == {"light.kitchen"}, found
+    print("PASS mapped PV entity excluded from top devices")
+
+
+def test_recommendation_ignores_generation():
+    """High generation must not raise a false 'high consumption' alert."""
+    # 5 kW solar generation + only small consuming devices.
+    states = [
+        state("sensor.solaredge_pv_power", "5000", unit="W", device_class="power"),
+        state("light.kitchen", "on"),
+        state("switch.tv_plug", "off"),
+    ]
+    rec = devices.compute_home_recommendation(states, CFG)
+    assert rec.severity != "warning", rec           # no false high-consumption
+    assert "high consumption" not in rec.text.lower(), rec
+    assert "solaredge" not in rec.text.lower() and "pv" not in rec.text.lower(), rec
+
+    # A mapped high-power entity is likewise ignored by the recommendation.
+    states2 = [
+        state("sensor.house_main_power", "6000", unit="W", device_class="power"),
+        state("light.kitchen", "on"),
+    ]
+    rec2 = devices.compute_home_recommendation(
+        states2, CFG, {}, {"sensor.house_main_power"})
+    assert "high consumption" not in rec2.text.lower(), rec2
+
+    # But a REAL consuming device above the threshold still triggers the alert.
+    states3 = [
+        state("sensor.oven_power", "3000", unit="W", device_class="power"),
+        state("light.kitchen", "on"),
+    ]
+    rec3 = devices.compute_home_recommendation(states3, CFG)
+    assert rec3.severity == "warning" and "high consumption" in rec3.text.lower(), rec3
+    print("PASS recommendation based only on real consuming devices")
+
+
 def test_discover_and_db_roundtrip():
     """discover_devices + sample persistence works without any PV mapping."""
     database.init_db()
@@ -185,9 +254,58 @@ def test_discover_and_db_roundtrip():
     print("PASS discover + DB roundtrip (no PV mapping needed)")
 
 
+def test_profile_rated_power_overrides_default():
+    """A device profile's rated_power_w overrides the type default wattage."""
+    st = state("switch.heater", "on")
+    profile = DeviceProfile(entity_id="switch.heater", appliance_type="heater",
+                            rated_power_w=2000.0)
+    d = devices.classify_device(st, CFG, profile)
+    assert d["mode"] == "estimated", d
+    assert d["estimated_wattage"] == 2000.0, d        # not the 1 W default
+    assert d["appliance_type"] == "heater", d
+    assert devices.current_power_w(d, st) == 2000.0
+    # No profile -> falls back to the default switch wattage.
+    d2 = devices.classify_device(st, CFG, None)
+    assert d2["estimated_wattage"] == 1.0, d2
+    print("PASS device profile rated_power_w overrides default wattage")
+
+
+def test_measured_takes_priority_over_profile():
+    """A device reporting power (attribute) is measured even if a profile exists."""
+    st = state("switch.kasa_plug", "on")
+    st["attributes"]["current_power_w"] = 42.5     # plug reports real power
+    profile = DeviceProfile(entity_id="switch.kasa_plug", rated_power_w=2000.0)
+    d = devices.classify_device(st, CFG, profile)
+    assert d["mode"] == "measured", d              # measured wins over profile
+    assert d["power_attr"] == "current_power_w", d
+    assert devices.current_power_w(d, st) == 42.5  # uses reading, not 2000 W
+    print("PASS measured mode takes priority over estimated profile")
+
+
+def test_display_name_and_estimation_disabled():
+    """display_name override applies; estimation_enabled=False -> monitoring."""
+    st = state("switch.toilet_plug", "on", name="IKEA smart plug")
+    profile = DeviceProfile(entity_id="switch.toilet_plug",
+                            display_name="IKEA smart plug - toilet",
+                            rated_power_w=15.0, estimation_enabled=False)
+    d = devices.classify_device(st, CFG, profile)
+    assert d["name"] == "IKEA smart plug - toilet", d
+    assert d["mode"] == "monitoring", d
+    usage = devices.compute_device_usage(d, st, [], [], 0.30)
+    assert usage.current_power_w is None and usage.today_cost_eur == 0.0, usage
+    assert "monitoring" in usage.note.lower()
+    print("PASS display_name override + estimation disabled (monitoring)")
+
+
 if __name__ == "__main__":
     test_classification()
     test_current_power()
+    test_profile_rated_power_overrides_default()
+    test_measured_takes_priority_over_profile()
+    test_display_name_and_estimation_disabled()
+    test_unmapped_generation_sensor_excluded()
+    test_mapped_pv_entity_excluded()
+    test_recommendation_ignores_generation()
     test_estimated_device_energy_and_cost()
     test_measured_power_sensor_energy()
     test_measured_energy_sensor_cumulative()

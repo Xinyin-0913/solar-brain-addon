@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.7.0
+
+**Product redesign: Smart Home Energy is now the primary product; solar is optional.**
+
+- Renamed the visible app to **Smart Home Energy** (add-on `name`,
+  `panel_title`, FastAPI title, all UI copy). Subtitle: "Smart home energy
+  management for Home Assistant." The slug stays `solar_brain` so existing
+  installs and `/data` keep working; the Python package is unchanged.
+- The root page `/` is now the Smart Home Energy dashboard:
+  1. **Home energy summary** - current power, today/month kWh, today/month
+     cost, and device counts (discovered / measured / estimated).
+  2. **Smart home recommendation** - derived from live device data
+     (high consumption now, a device left on a long time, "most devices are
+     estimated - set profiles", or "no high consumption detected"). No fake
+     savings claims.
+  3. **Top devices** table (top 10; full list on `/devices`).
+  4. **Optional solar section** - a small "Solar module not configured" card
+     when no PV/grid/battery/EV entities are mapped; the live PV telemetry
+     summary (with a link to savings) when they are.
+- **Device profiles** (`/settings/devices`, `GET`/`POST /api/devices/profiles`):
+  per controllable device set a display-name override, appliance type,
+  `rated_power_w`, and `estimation_enabled`. Estimation priority:
+  measured sensor/attribute > profile `rated_power_w` > default wattage by
+  type. Smart plugs/lights that report power in their attributes (e.g.
+  `current_power_w`) are measured automatically. `estimation_enabled=false`
+  makes a device monitoring-only (no cost). Battery sensors remain no-cost.
+- **Generation sensors are never counted as consumption.** Entities mapped
+  to the solar/PV module, and obvious unmapped generation/feed-in sensors
+  (solar / PV / production / inverter / export by name), are excluded from
+  the device list, home totals, cost, top devices, and the recommendation -
+  so PV production can no longer trigger a false "high consumption" alert.
+- New `GET /api/home/recommendation`. All existing API endpoints unchanged.
+- Navigation: `/` (home), `/devices`, `/settings/devices`,
+  `/settings/entities` (now framed as the optional solar/PV mapping),
+  `/savings` (framed as optional solar savings).
+- Data correctness unchanged: no invented history; the poller keeps sampling
+  and integrating; the UI states totals only accumulate since data
+  collection started; measured vs estimated stays visible.
+- Solar/PV code, telemetry, and savings are intact. No Supervisor connection
+  changes.
+
 ## 0.6.0
 
 **Smart Home Energy MVP - per-device usage and cost, with or without solar.**

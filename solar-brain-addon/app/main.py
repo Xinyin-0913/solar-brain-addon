@@ -13,12 +13,14 @@ from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from . import database, devices, entity_discovery, savings, telemetry, ui
+from . import database, devices, entity_discovery, models, savings, telemetry, ui
 from .ha_client import HomeAssistantClient
 from .models import (
     TELEMETRY_ROLES,
     AddonConfig,
+    DeviceProfilesUpdate,
     DevicesResponse,
+    HomeRecommendation,
     MappingUpdate,
     Recommendation,
     SavingsCurrent,
@@ -88,9 +90,13 @@ async def _poll_telemetry_loop() -> None:
 def _sample_devices(states: list[dict]) -> None:
     """Persist one power/energy sample per discovered device; prune old rows."""
     ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    profiles = database.get_device_profiles()
+    excluded = set(database.get_mappings().values())  # solar/PV module entities
     rows: list[tuple[str, str, float | None, float | None]] = []
     for state in states:
-        device = devices.classify_device(state, config)
+        device = devices.classify_device(
+            state, config, profiles.get(state.get("entity_id", "")), excluded
+        )
         if device is None:
             continue
         power_w, energy_kwh = devices.make_sample(device, state)
@@ -122,7 +128,7 @@ async def lifespan(app: FastAPI):
     poller.cancel()
 
 
-app = FastAPI(title="Solar Brain", version="0.6.0", lifespan=lifespan)
+app = FastAPI(title="Smart Home Energy", version="0.7.0", lifespan=lifespan)
 
 
 @app.exception_handler(Exception)
@@ -166,6 +172,11 @@ async def savings_page() -> str:
 @app.get("/devices", response_class=HTMLResponse)
 async def devices_page() -> str:
     return ui.DEVICES_HTML
+
+
+@app.get("/settings/devices", response_class=HTMLResponse)
+async def device_profiles_page() -> str:
+    return ui.DEVICE_PROFILES_HTML
 
 
 # --- Entity discovery & mapping ---------------------------------------------
@@ -229,6 +240,68 @@ async def api_save_mapping(update: MappingUpdate) -> dict:
     return {"mappings": saved, "validated": validated}
 
 
+# --- Smart home energy (primary) --------------------------------------------
+
+
+@app.get("/api/home/recommendation", response_model=HomeRecommendation)
+async def api_home_recommendation() -> HomeRecommendation:
+    """Honest smart-home recommendation from live device data."""
+    states = await ha_client.get_states()
+    if states is None:
+        raise HTTPException(status_code=503, detail=HA_UNAVAILABLE_DETAIL)
+    return devices.compute_home_recommendation(
+        states, config, database.get_device_profiles(),
+        set(database.get_mappings().values()),
+    )
+
+
+@app.get("/api/devices/profiles")
+async def api_get_device_profiles() -> dict:
+    """Saved profiles + the controllable devices that can take one."""
+    profiles = database.get_device_profiles()
+    controllable: list[dict] = []
+    states = await ha_client.get_states()
+    if states is not None:
+        for state in states:
+            device = devices.classify_device(
+                state, config, profiles.get(state.get("entity_id", ""))
+            )
+            if device is not None and devices.is_profilable(device):
+                controllable.append({
+                    "entity_id": device["entity_id"],
+                    "name": device["name"],
+                    "device_type": device["device_type"],
+                    "appliance_type": device.get("appliance_type"),
+                    "mode": device["mode"],
+                    "estimated_wattage": device.get("estimated_wattage"),
+                })
+        controllable.sort(key=lambda d: d["entity_id"])
+    return {
+        "appliance_types": models.APPLIANCE_TYPES,
+        "profiles": {eid: p.model_dump() for eid, p in profiles.items()},
+        "controllable_devices": controllable,
+    }
+
+
+@app.post("/api/devices/profiles")
+async def api_save_device_profiles(update: DeviceProfilesUpdate) -> dict:
+    """Upsert device profiles. A rated_power_w of null clears the override."""
+    invalid = [p.appliance_type for p in update.profiles
+               if p.appliance_type not in models.APPLIANCE_TYPES]
+    if invalid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown appliance_type(s): {invalid}. "
+                   f"Valid: {models.APPLIANCE_TYPES}",
+        )
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    for profile in update.profiles:
+        database.save_device_profile(profile, now)
+    return {"saved": len(update.profiles),
+            "profiles": {eid: p.model_dump()
+                         for eid, p in database.get_device_profiles().items()}}
+
+
 # --- Telemetry ---------------------------------------------------------------
 
 
@@ -242,7 +315,9 @@ async def api_devices() -> DevicesResponse:
     now = datetime.now(timezone.utc)
     today_start, month_start = devices._period_starts_utc(now)
     states_by_id = {s.get("entity_id"): s for s in states}
-    discovered = devices.discover_devices(states, config)
+    profiles = database.get_device_profiles()
+    excluded = set(database.get_mappings().values())  # solar/PV module entities
+    discovered = devices.discover_devices(states, config, profiles, excluded)
 
     # One DB read for the whole month; split per device / per today in memory.
     month_rows = database.get_device_samples_since(month_start)

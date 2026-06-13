@@ -61,196 +61,186 @@ _BASE_CSS = """
   .btn:disabled { opacity: .5; cursor: default; }
 """
 
+_NAV = (
+    '<a href="./">Home</a> &middot; '
+    '<a href="devices">Devices</a> &middot; '
+    '<a href="settings/devices">Device profiles</a> &middot; '
+    '<a href="settings/entities">Entity mapping</a> &middot; '
+    '<a href="savings">Savings (solar)</a>'
+)
+
 DASHBOARD_HTML = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solar Brain</title>
+<title>Smart Home Energy</title>
 <style>
 {_BASE_CSS}
-  .grid2 {{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }}
-  .recommendation {{ font-size: 18px; font-weight: 600; margin-bottom: 10px; }}
-  .reason {{ color: var(--muted); font-size: 14px; line-height: 1.5; }}
-  .badge {{
-    display: inline-block; padding: 4px 12px; border-radius: 999px;
-    font-size: 12px; font-weight: 600; margin-top: 14px;
-  }}
-  .badge.low {{ background: rgba(62,207,142,.12); color: var(--low); }}
-  .badge.medium {{ background: rgba(242,178,45,.12); color: var(--medium); }}
-  .badge.high {{ background: rgba(242,92,92,.12); color: var(--high); }}
-  .tag {{ font-size: 10px; color: var(--muted); }}
+  .summary {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }}
+  .summary .v {{ font-size: 20px; font-weight: 700; }}
+  .v.eur {{ color: var(--low); }}
+  .counts {{ color: var(--muted); font-size: 12px; margin-top: 14px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+  th, td {{ text-align: right; padding: 8px 10px; border-bottom: 1px solid #232a35; }}
+  th {{ color: var(--muted); font-size: 11px; text-transform: uppercase;
+        letter-spacing: 1px; font-weight: 600; }}
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2),
+  th:nth-child(3), td:nth-child(3) {{ text-align: left; }}
+  td.name {{ font-weight: 600; }}
+  .tag {{ display: inline-block; padding: 2px 9px; border-radius: 999px;
+          font-size: 11px; font-weight: 600; }}
+  .tag.measured {{ background: rgba(62,207,142,.13); color: var(--low); }}
+  .tag.estimated {{ background: rgba(242,178,45,.13); color: var(--medium); }}
+  .tag.monitoring, .tag.none {{ background: #232a35; color: var(--muted); }}
+  td.eur {{ color: var(--low); }}
+  .rec {{ display: flex; gap: 14px; align-items: flex-start; border-radius: 12px;
+          padding: 14px 16px; }}
+  .rec.info {{ background: rgba(24,188,242,.07); border: 1px solid rgba(24,188,242,.3); }}
+  .rec.warning {{ background: rgba(242,178,45,.09); border: 1px solid rgba(242,178,45,.4); }}
+  .rec .em {{ font-size: 22px; }}
+  .rec b {{ display: block; font-size: 15px; margin-bottom: 3px; }}
+  .rec span {{ font-size: 13px; color: var(--muted); line-height: 1.5; }}
+  .solar-small {{ font-size: 13.5px; color: var(--muted); line-height: 1.6; }}
+  .solar-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }}
 </style>
 </head>
 <body>
 <div class="container">
   <header>
-    <div class="logo">&#9728;</div>
+    <div class="logo">&#9889;</div>
     <div>
-      <h1>Solar Brain</h1>
-      <small>Smart solar energy advisor</small>
+      <h1>Smart Home Energy</h1>
+      <small>Smart home energy management for Home Assistant</small>
     </div>
   </header>
 
   <div class="card">
-    <h2>Live telemetry</h2>
-    <div class="grid" id="telemetry-grid">
-      <div><div class="label">Solar</div><div class="value" id="tel-solar">&hellip;</div></div>
-      <div><div class="label">Battery</div><div class="value" id="tel-batt">&hellip;</div></div>
-      <div><div class="label">Home load</div><div class="value" id="tel-load">&hellip;</div></div>
-      <div><div class="label">Grid import</div><div class="value" id="tel-import">&hellip;</div></div>
-      <div><div class="label">Grid export</div><div class="value" id="tel-export">&hellip;</div></div>
-      <div><div class="label">EV charging</div><div class="value" id="tel-ev">&hellip;</div></div>
+    <h2>Home energy summary</h2>
+    <div class="summary">
+      <div><div class="label">Current power</div><div class="v" id="s-power">&hellip;</div></div>
+      <div><div class="label">Today</div><div class="v" id="s-today-kwh">&hellip;</div></div>
+      <div><div class="label">This month</div><div class="v" id="s-month-kwh">&hellip;</div></div>
+      <div><div class="label">Today cost</div><div class="v eur" id="s-today-eur">&hellip;</div></div>
+      <div><div class="label">Month cost</div><div class="v eur" id="s-month-eur">&hellip;</div></div>
     </div>
-    <div class="muted" id="telemetry-note" style="margin-top:14px;font-size:12px;"></div>
+    <div class="counts" id="s-counts"></div>
   </div>
 
   <div class="card">
-    <h2>Savings</h2>
-    <div class="grid">
-      <div><div class="label">Today</div><div class="value" id="sv-today">&hellip;</div></div>
-      <div><div class="label">This week</div><div class="value" id="sv-week">&hellip;</div></div>
-      <div><div class="label">This month</div><div class="value" id="sv-month">&hellip;</div></div>
-      <div><div class="label">Lifetime</div><div class="value" id="sv-life">&hellip;</div></div>
-      <div><div class="label">Est. annual</div><div class="value" id="sv-annual">&hellip;</div></div>
-      <div><div class="label">Payback</div><div class="value" id="sv-payback">&hellip;</div></div>
-      <div><div class="label">Payback date</div><div class="value" id="sv-paydate">&hellip;</div></div>
+    <h2>Smart home recommendation</h2>
+    <div class="rec info" id="rec"><span class="em">&#8505;</span>
+      <div><b id="rec-text">&hellip;</b><span id="rec-detail"></span></div>
     </div>
-    <div class="muted" id="savings-note" style="margin-top:14px;font-size:12px;"></div>
-    <div style="margin-top:10px;font-size:12px;"><a href="savings">How are these numbers calculated? &rarr;</a></div>
   </div>
 
   <div class="card">
-    <h2>Recommendation</h2>
-    <div class="recommendation" id="rec-text">&hellip;</div>
-    <div class="reason" id="rec-reason"></div>
-    <span class="badge low" id="rec-risk">&hellip;</span>
+    <h2>Top devices</h2>
+    <table>
+      <thead><tr>
+        <th>Device</th><th>Type</th><th>Mode</th><th>Power</th>
+        <th>Today kWh</th><th>Month kWh</th><th>Today &euro;</th><th>Month &euro;</th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="8" class="muted">Loading&hellip;</td></tr></tbody>
+    </table>
+    <div style="margin-top:12px;font-size:12px;"><a href="devices">See all devices &rarr;</a></div>
   </div>
 
-  <div class="card">
-    <h2>Status</h2>
-    <div class="grid2">
-      <div><div class="label">Add-on</div><div class="value" id="addon-status">&hellip;</div></div>
-      <div><div class="label">Time</div><div class="value" id="current-time">&hellip;</div></div>
-      <div><div class="label">Location</div><div class="value" id="location">&hellip;</div></div>
-      <div><div class="label">Home Assistant</div><div class="value" id="ha-mode">&hellip;</div></div>
-    </div>
-    <div class="muted" id="ha-connection" style="margin-top:14px;font-size:12px;"></div>
+  <div class="card" id="solar-card">
+    <h2>Solar / PV module</h2>
+    <div id="solar-body" class="solar-small">Checking&hellip;</div>
   </div>
 
-  <footer>
-    <a href="devices">Smart home energy</a> &middot;
-    <a href="savings">Savings details</a> &middot;
-    <a href="settings/entities">Entity mapping</a> &middot;
-    <a href="api/status">/api/status</a> &middot;
-    <a href="api/telemetry/current">/api/telemetry/current</a>
-  </footer>
+  <footer>{_NAV}</footer>
 </div>
 
 <script>
-function fmtW(v) {{
-  if (v === null || v === undefined) return '\\u2014';
-  return Math.abs(v) >= 1000 ? (v / 1000).toFixed(2) + ' kW' : Math.round(v) + ' W';
-}}
+const W = v => (v === null || v === undefined) ? '\\u2014'
+  : (Math.abs(v) >= 1000 ? (v/1000).toFixed(2)+' kW' : Math.round(v)+' W');
+const EUR = v => '\\u20ac ' + (v || 0).toFixed(2);
+const KWH = v => (v || 0).toFixed(2) + ' kWh';
+const PV_ROLES = ['solar_power','battery_soc','grid_import_power','grid_export_power','ev_power'];
 
-async function refreshTelemetry() {{
-  const note = document.getElementById('telemetry-note');
+async function loadHome() {{
+  const counts = document.getElementById('s-counts');
   try {{
-    const res = await fetch('api/telemetry/current');
+    const res = await fetch('api/devices');
     if (!res.ok) {{
-      const body = await res.json().catch(() => ({{}}));
-      note.innerHTML = (body.detail || 'Telemetry unavailable.') +
-        ' <a href="settings/entities">Open entity mapping &rarr;</a>';
+      const b = await res.json().catch(() => ({{}}));
+      counts.textContent = b.detail || 'Devices unavailable.';
       return;
     }}
-    const t = await res.json();
-    document.getElementById('tel-solar').textContent = fmtW(t.solar_power_w);
-    document.getElementById('tel-batt').textContent =
-      t.battery_soc === null ? '\\u2014' : t.battery_soc.toFixed(0) + ' %';
-    document.getElementById('tel-load').textContent = fmtW(t.home_load_w) +
-      (t.estimated_fields.includes('home_load_w') ? ' (est.)' : '');
-    document.getElementById('tel-import').textContent = fmtW(t.grid_import_w);
-    document.getElementById('tel-export').textContent = fmtW(t.grid_export_w);
-    document.getElementById('tel-ev').textContent = fmtW(t.ev_power_w);
-    if (t.missing_roles.length === 6) {{
-      note.innerHTML = 'No entities mapped yet. ' +
-        '<a href="settings/entities">Map your sensors &rarr;</a>';
-    }} else if (t.missing_roles.length > 0) {{
-      note.textContent = 'No data for: ' + t.missing_roles.join(', ');
-    }} else {{
-      note.textContent = '';
-    }}
-  }} catch (err) {{
-    note.textContent = 'Failed to load telemetry: ' + err;
-  }}
+    const d = await res.json();
+    document.getElementById('s-power').textContent = W(d.totals_current_power_w);
+    document.getElementById('s-today-kwh').textContent = KWH(d.totals_today_kwh);
+    document.getElementById('s-month-kwh').textContent = KWH(d.totals_month_kwh);
+    document.getElementById('s-today-eur').textContent = EUR(d.totals_today_cost_eur);
+    document.getElementById('s-month-eur').textContent = EUR(d.totals_month_cost_eur);
+    let info = d.device_count + ' devices discovered \\u00b7 ' + d.measured_count +
+      ' measured \\u00b7 ' + d.estimated_count + ' estimated \\u00b7 tariff \\u20ac ' +
+      d.import_price_eur_per_kwh.toFixed(2) + '/kWh';
+    info += d.measured_since
+      ? ' \\u00b7 totals since ' + new Date(d.measured_since).toLocaleDateString() +
+        ' (when data collection started)'
+      : ' \\u00b7 collecting data \\u2014 totals fill in as the add-on runs';
+    counts.textContent = info;
+
+    const tbody = document.getElementById('rows');
+    const top = d.devices.slice(0, 10);
+    tbody.innerHTML = top.length ? top.map(u => `<tr>
+      <td class="name" title="${{u.note}}">${{u.name}}</td>
+      <td>${{(u.appliance_type || u.device_type).replace(/_/g,' ')}}</td>
+      <td><span class="tag ${{u.mode}}">${{u.mode}}</span></td>
+      <td>${{W(u.current_power_w)}}</td>
+      <td>${{KWH(u.today_kwh)}}</td><td>${{KWH(u.month_kwh)}}</td>
+      <td class="eur">${{EUR(u.today_cost_eur)}}</td>
+      <td class="eur">${{EUR(u.month_cost_eur)}}</td></tr>`).join('')
+      : '<tr><td colspan="8" class="muted">No devices found. Add lights, switches ' +
+        'or power sensors in Home Assistant.</td></tr>';
+  }} catch (err) {{ counts.textContent = 'Failed to load: ' + err; }}
 }}
 
-async function refresh() {{
+async function loadRecommendation() {{
   try {{
-    const [status, rec] = await Promise.all([
-      fetch('api/status').then(r => r.json()),
-      fetch('api/recommendation').then(r => r.json()),
-    ]);
-    document.getElementById('addon-status').textContent = status.addon_status;
-    document.getElementById('current-time').textContent =
-      new Date(status.current_time).toLocaleString();
-    document.getElementById('location').textContent = status.location;
-    document.getElementById('ha-mode').textContent =
-      status.ha_mode + ' \\u00b7 ' + status.ha_auth.replace(/_/g, ' ') +
-      (status.ha_reachable ? '' : ' \\u00b7 offline');
-    document.getElementById('ha-connection').textContent = status.ha_connection;
-    document.getElementById('rec-text').textContent = rec.recommendation_text;
-    document.getElementById('rec-reason').textContent = rec.reason;
-    const badge = document.getElementById('rec-risk');
-    badge.textContent = 'risk: ' + rec.risk_level;
-    badge.className = 'badge ' + rec.risk_level;
-  }} catch (err) {{
-    document.getElementById('rec-text').textContent = 'Failed to load data';
-    document.getElementById('rec-reason').textContent = String(err);
-  }}
-}}
-
-function fmtEur(v) {{
-  return (v === null || v === undefined) ? '\\u2014' : '\\u20ac ' + v.toFixed(2);
-}}
-
-async function refreshSavings() {{
-  const note = document.getElementById('savings-note');
-  try {{
-    const res = await fetch('api/savings/summary');
-    if (!res.ok) {{ note.textContent = 'Savings unavailable.'; return; }}
-    const s = await res.json();
-    document.getElementById('sv-today').textContent = fmtEur(s.today.total_benefit_eur);
-    document.getElementById('sv-week').textContent = fmtEur(s.this_week.total_benefit_eur);
-    document.getElementById('sv-month').textContent = fmtEur(s.this_month.total_benefit_eur);
-    document.getElementById('sv-life').textContent = fmtEur(s.lifetime.total_benefit_eur);
-    document.getElementById('sv-annual').textContent =
-      s.estimated_annual_savings_eur === null
-        ? '\\u2014 (needs 24 h of data)' : fmtEur(s.estimated_annual_savings_eur);
-    document.getElementById('sv-payback').textContent =
-      s.payback.progress_percent === null
-        ? '\\u2014 (set system_cost_eur)' : s.payback.progress_percent.toFixed(1) + ' %';
-    document.getElementById('sv-paydate').textContent =
-      s.payback.estimated_payback_date || '\\u2014';
-    let info = 'tariff \\u20ac ' + s.prices.import_eur_per_kwh.toFixed(2) +
-      '/kWh \\u00b7 feed-in \\u20ac ' + s.prices.feed_in_eur_per_kwh.toFixed(2) + '/kWh';
-    if (s.measured_since) {{
-      info += ' \\u00b7 measured since ' + new Date(s.measured_since).toLocaleDateString();
-    }} else {{
-      info += ' \\u00b7 no telemetry history yet \\u2014 map your entities first';
+    const res = await fetch('api/home/recommendation');
+    if (!res.ok) return;
+    const r = await res.json();
+    document.getElementById('rec').className = 'rec ' + r.severity;
+    document.getElementById('rec-text').textContent = r.text;
+    const detail = document.getElementById('rec-detail');
+    detail.textContent = r.detail || '';
+    if (r.action_url) {{
+      detail.innerHTML += ' <a href="' + r.action_url + '">Configure &rarr;</a>';
     }}
-    note.textContent = info;
+  }} catch (err) {{ /* leave default */ }}
+}}
+
+async function loadSolar() {{
+  const body = document.getElementById('solar-body');
+  try {{
+    const m = await fetch('api/entities/mapping').then(r => r.json());
+    const mapped = PV_ROLES.filter(role => m.mappings && m.mappings[role]);
+    if (!mapped.length) {{
+      body.innerHTML = 'Solar module not configured. ' +
+        '<a href="settings/entities">Map solar / grid / battery entities</a> if you have a PV system.';
+      return;
+    }}
+    const t = await fetch('api/telemetry/current').then(r => r.json());
+    body.innerHTML = '<div class="solar-grid">' +
+      '<div><div class="label">Solar</div><div class="value">' + W(t.solar_power_w) + '</div></div>' +
+      '<div><div class="label">Battery</div><div class="value">' +
+        (t.battery_soc === null ? '\\u2014' : t.battery_soc.toFixed(0)+' %') + '</div></div>' +
+      '<div><div class="label">Grid import</div><div class="value">' + W(t.grid_import_w) + '</div></div>' +
+      '<div><div class="label">Grid export</div><div class="value">' + W(t.grid_export_w) + '</div></div>' +
+      '</div><div style="margin-top:12px"><a href="savings">Solar savings details &rarr;</a></div>';
   }} catch (err) {{
-    note.textContent = 'Failed to load savings: ' + err;
+    body.textContent = 'Solar module not configured.';
   }}
 }}
 
-refresh();
-refreshTelemetry();
-refreshSavings();
-setInterval(refresh, 60000);
-setInterval(refreshTelemetry, 30000);
-setInterval(refreshSavings, 60000);
+function loadAll() {{ loadHome(); loadRecommendation(); loadSolar(); }}
+loadAll();
+setInterval(loadAll, 60000);
 </script>
 </body>
 </html>
@@ -261,7 +251,7 @@ SAVINGS_HTML = f"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solar Brain &middot; Savings</title>
+<title>Smart Home Energy &middot; Savings (solar)</title>
 <style>
 {_BASE_CSS}
   .seg {{ display: flex; gap: 6px; background: #11151c; border: 1px solid var(--border);
@@ -344,7 +334,7 @@ SAVINGS_HTML = f"""<!DOCTYPE html>
     </div>
   </div>
 
-  <footer><a href="./">&larr; Back to dashboard</a></footer>
+  <footer>{_NAV}</footer>
 </div>
 
 <script>
@@ -412,7 +402,7 @@ DEVICES_HTML = f"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solar Brain &middot; Smart home energy</title>
+<title>Smart Home Energy &middot; Devices</title>
 <style>
 {_BASE_CSS}
   .summary {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }}
@@ -469,7 +459,7 @@ DEVICES_HTML = f"""<!DOCTYPE html>
     </table>
   </div>
 
-  <footer><a href="./">&larr; Back to dashboard</a></footer>
+  <footer>{_NAV}</footer>
 </div>
 
 <script>
@@ -534,12 +524,145 @@ setInterval(load, 60000);
 </html>
 """
 
+DEVICE_PROFILES_HTML = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Home Energy &middot; Device profiles</title>
+<style>
+{_BASE_CSS}
+  table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+  th, td {{ text-align: left; padding: 9px 8px; border-bottom: 1px solid #232a35;
+            vertical-align: middle; }}
+  th {{ color: var(--muted); font-size: 11px; text-transform: uppercase;
+        letter-spacing: 1px; font-weight: 600; }}
+  td.ent {{ color: var(--muted); font-size: 11px; }}
+  input, select {{ background: #11151c; color: var(--text); border: 1px solid var(--border);
+                   border-radius: 8px; padding: 7px 9px; font-size: 13px; font-family: inherit; }}
+  input.name {{ width: 150px; }} input.watt {{ width: 80px; }}
+  .toolbar {{ display: flex; gap: 12px; align-items: center; margin-top: 20px; }}
+  .btn {{ background: var(--accent); color: #14171c; border: none; cursor: pointer;
+          padding: 10px 22px; border-radius: 10px; font-size: 14px; font-weight: 700; }}
+  #msg {{ font-size: 13px; }} #msg.ok {{ color: var(--low); }} #msg.err {{ color: var(--high); }}
+  .hint {{ color: var(--muted); font-size: 12.5px; line-height: 1.6; margin-bottom: 16px; }}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">&#9881;</div>
+    <div>
+      <h1>Device profiles</h1>
+      <small>Set rated power for smart plugs &amp; lights so estimates are accurate</small>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>Controllable devices</h2>
+    <div class="hint">
+      For devices with no power sensor, energy is estimated as
+      <b>rated power &times; on-time</b>. Set the real wattage of what each smart
+      plug controls (e.g. a heater vs a phone charger). Devices that report their
+      own power are measured automatically and ignore these settings.
+      Leave rated power blank to use the default for the device type.
+    </div>
+    <table>
+      <thead><tr>
+        <th>Entity</th><th>Display name</th><th>Appliance type</th>
+        <th>Rated power (W)</th><th>Estimate?</th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="5" class="muted">Loading&hellip;</td></tr></tbody>
+    </table>
+    <div class="toolbar">
+      <button class="btn" id="save" disabled>Save profiles</button>
+      <span id="msg"></span>
+    </div>
+  </div>
+
+  <footer><a href="../">&larr; Back to home</a></footer>
+</div>
+
+<script>
+let applianceTypes = [];
+
+async function load() {{
+  const tbody = document.getElementById('rows');
+  try {{
+    const res = await fetch('../api/devices/profiles');
+    if (!res.ok) {{
+      const b = await res.json().catch(() => ({{}}));
+      tbody.innerHTML = '<tr><td colspan="5" class="muted">' +
+        (b.detail || 'Unavailable.') + '</td></tr>';
+      return;
+    }}
+    const d = await res.json();
+    applianceTypes = d.appliance_types;
+    const devs = d.controllable_devices;
+    if (!devs.length) {{
+      tbody.innerHTML = '<tr><td colspan="5" class="muted">No lights or switches ' +
+        'found in Home Assistant.</td></tr>';
+      return;
+    }}
+    tbody.innerHTML = devs.map(dev => {{
+      const p = d.profiles[dev.entity_id] || {{}};
+      const selType = p.appliance_type || dev.appliance_type || 'custom';
+      const opts = applianceTypes.map(t =>
+        `<option value="${{t}}"${{selType === t ? ' selected' : ''}}>` +
+        t.replace(/_/g,' ') + '</option>').join('');
+      const measured = dev.mode === 'measured';
+      return `<tr data-entity="${{dev.entity_id}}" data-measured="${{measured}}">
+        <td class="ent">${{dev.entity_id}}${{measured ? ' \\u2022 measured' : ''}}</td>
+        <td><input class="name" value="${{p.display_name || ''}}" placeholder="${{dev.name}}"></td>
+        <td><select class="atype">${{opts}}</select></td>
+        <td><input class="watt" type="number" min="0" step="1"
+             value="${{p.rated_power_w ?? ''}}" placeholder="${{dev.estimated_wattage ?? ''}}"
+             ${{measured ? 'disabled' : ''}}></td>
+        <td><input class="est" type="checkbox" ${{p.estimation_enabled === false ? '' : 'checked'}}></td>
+      </tr>`;
+    }}).join('');
+    document.getElementById('save').disabled = false;
+  }} catch (err) {{
+    tbody.innerHTML = '<tr><td colspan="5" class="muted">Failed: ' + err + '</td></tr>';
+  }}
+}}
+
+document.getElementById('save').addEventListener('click', async () => {{
+  const msg = document.getElementById('msg');
+  const profiles = [...document.querySelectorAll('#rows tr[data-entity]')].map(tr => {{
+    const watt = tr.querySelector('.watt').value;
+    const name = tr.querySelector('.name').value.trim();
+    return {{
+      entity_id: tr.dataset.entity,
+      display_name: name || null,
+      appliance_type: tr.querySelector('.atype').value,
+      rated_power_w: watt === '' ? null : parseFloat(watt),
+      estimation_enabled: tr.querySelector('.est').checked,
+    }};
+  }});
+  try {{
+    const res = await fetch('../api/devices/profiles', {{
+      method: 'POST', headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{profiles}}),
+    }});
+    const b = await res.json();
+    msg.className = res.ok ? 'ok' : 'err';
+    msg.textContent = res.ok ? ('Saved ' + b.saved + ' profiles.') : (b.detail || 'Failed.');
+  }} catch (err) {{ msg.className = 'err'; msg.textContent = 'Failed: ' + err; }}
+}});
+
+load();
+</script>
+</body>
+</html>
+"""
+
 SETTINGS_HTML = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solar Brain &middot; Entity mapping</title>
+<title>Smart Home Energy &middot; Entity mapping</title>
 <style>
 {_BASE_CSS}
   .role-row {{ padding: 16px 0; border-bottom: 1px solid var(--border); }}
@@ -563,7 +686,7 @@ SETTINGS_HTML = f"""<!DOCTYPE html>
     <div class="logo">&#9881;</div>
     <div>
       <h1>Entity mapping</h1>
-      <small>Tell Solar Brain which sensors to read</small>
+      <small>Map solar / grid / battery / EV sensors (optional PV module)</small>
     </div>
   </header>
 
@@ -578,7 +701,7 @@ SETTINGS_HTML = f"""<!DOCTYPE html>
     </div>
   </div>
 
-  <footer><a href="../">&larr; Back to dashboard</a></footer>
+  <footer><a href="../">&larr; Back to home</a></footer>
 </div>
 
 <script>

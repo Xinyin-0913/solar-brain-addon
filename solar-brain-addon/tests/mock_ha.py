@@ -107,6 +107,22 @@ STATES = [
         "state": "off",
         "attributes": {"friendly_name": "Pool Pump"},
     },
+    {
+        "entity_id": "light.living_room",
+        "state": "on",
+        "attributes": {"friendly_name": "Living Room Light"},
+    },
+    {
+        "entity_id": "switch.coffee_maker",
+        "state": "off",
+        "attributes": {"friendly_name": "Coffee Maker"},
+    },
+    {
+        "entity_id": "switch.kasa_tv_plug",
+        "state": "on",
+        # Reports its own power -> classified as measured, not estimated.
+        "attributes": {"friendly_name": "TV (Kasa plug)", "current_power_w": 95.0},
+    },
 ]
 
 

@@ -1,7 +1,8 @@
-name: Solar Brain
-version: "0.6.0"
+# Visible name; slug stays "solar_brain" so existing installs and /data keep working.
+name: Smart Home Energy
+version: "0.7.0"
 slug: solar_brain
-description: Smart solar energy recommendations for your home (MVP)
+description: Smart home energy management for Home Assistant (solar/PV optional)
 url: https://github.com/your-username/solar-brain-addons
 arch:
   - amd64
@@ -17,8 +18,8 @@ homeassistant_api: true
 hassio_api: true
 ingress: true
 ingress_port: 8099
-panel_icon: mdi:solar-power
-panel_title: Solar Brain
+panel_icon: mdi:home-lightning-bolt
+panel_title: Smart Home Energy
 ports:
   8099/tcp: null
 ports_description:

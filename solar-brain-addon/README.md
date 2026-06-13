@@ -1,14 +1,26 @@
-# Solar Brain (Home Assistant Add-on)
+# Smart Home Energy (Home Assistant Add-on)
 
-Smart solar energy advisor for Home Assistant. MVP version: exposes a web
-dashboard and a REST API on port **8099** with placeholder recommendation
-logic (no hardware control yet).
+Smart home energy management for Home Assistant. Shows per-device electricity
+usage and cost across your home, **with or without a PV system**. Solar/PV,
+battery, and EV are optional modules — the add-on is useful even when no solar
+entities are mapped. Exposes a web dashboard and a REST API on port **8099**
+(no hardware control).
+
+> The internal slug is still `solar_brain` (kept for install/data
+> compatibility); the product name is Smart Home Energy.
 
 ## Features
 
-- Web dashboard at `http://<host>:8099/` with live telemetry
-- **Energy entity mapping** at `/settings/entities`: auto-discovers and
-  classifies your solar / battery / grid / EV sensors, with manual override
+- **Smart Home Energy dashboard** at `http://<host>:8099/`: home energy
+  summary (current power, today/month kWh and cost, device counts), a smart
+  recommendation, the top devices, and a small optional solar card
+- **Per-device energy** at `/devices` and `GET /api/devices`: usage and cost
+  for lights, switches, power/energy sensors, and batteries
+- **Device profiles** at `/settings/devices` (`GET`/`POST /api/devices/profiles`):
+  set a display name, appliance type, and **rated power** per smart plug/light
+  so estimates are accurate; toggle estimation per device
+- **Optional solar/PV module**: map solar / battery / grid / EV sensors at
+  `/settings/entities` to unlock live PV telemetry and savings
   (see [docs/entity_mapping.md](../docs/entity_mapping.md))
 - Unified telemetry: `GET /api/telemetry/current` — normalized snapshot
   (watts everywhere, SOC in %), one flaky sensor never breaks it
@@ -21,12 +33,12 @@ logic (no hardware control yet).
   formulas shown next to every number, and transparency warnings (low data
   coverage, default tariff, missing system cost); API:
   `GET /api/savings/detail?period=today|week|month|lifetime`
-- **Smart Home Energy**: `/devices` page and `GET /api/devices` show
-  per-device electricity usage and cost (lights, switches, power/energy
-  sensors, batteries) - works with or without a PV system. Measured devices
-  use real sensors; estimated devices use configurable default wattages
-  (`default_wattage_light`, `default_wattage_smart_plug`,
-  `default_wattage_motion_sensor`)
+- Estimation priority per device: **measured** sensor/attribute →
+  profile **`rated_power_w`** → default wattage by type
+  (`default_wattage_light` 9 W, `default_wattage_smart_plug` 1 W,
+  `default_wattage_motion_sensor` 0.1 W). Totals only accumulate since the
+  add-on started collecting data (no invented history)
+- `GET /api/home/recommendation` — smart-home recommendation from device data
 - `GET /api/status` — add-on status, time, location, current recommendation
 - `GET /api/recommendation` — recommendation with action, risk level, reason
 - `GET /api/entities/discover` / `GET|POST /api/entities/mapping`

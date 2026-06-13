@@ -10,7 +10,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-from .models import TelemetrySnapshot
+from .models import DeviceProfile, TelemetrySnapshot
 
 logger = logging.getLogger("solar_brain.db")
 
@@ -59,6 +59,16 @@ CREATE TABLE IF NOT EXISTS device_samples (
 );
 CREATE INDEX IF NOT EXISTS idx_device_samples_site_entity_ts
     ON device_samples (site_id, entity_id, ts);
+CREATE TABLE IF NOT EXISTS device_profiles (
+    site_id            TEXT NOT NULL,
+    entity_id          TEXT NOT NULL,
+    display_name       TEXT,
+    appliance_type     TEXT,
+    rated_power_w      REAL,
+    estimation_enabled INTEGER NOT NULL DEFAULT 1,
+    updated_at         TEXT NOT NULL,
+    PRIMARY KEY (site_id, entity_id)
+);
 """
 
 
@@ -200,6 +210,52 @@ def prune_device_samples(before_ts: str) -> int:
             (SITE_ID, before_ts),
         )
         return cur.rowcount
+
+
+def get_device_profiles() -> dict[str, DeviceProfile]:
+    """Return entity_id -> DeviceProfile for all configured profiles."""
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT entity_id, display_name, appliance_type, rated_power_w, "
+            "estimation_enabled FROM device_profiles WHERE site_id = ?",
+            (SITE_ID,),
+        ).fetchall()
+    return {
+        row["entity_id"]: DeviceProfile(
+            entity_id=row["entity_id"],
+            display_name=row["display_name"],
+            appliance_type=row["appliance_type"] or "custom",
+            rated_power_w=row["rated_power_w"],
+            estimation_enabled=bool(row["estimation_enabled"]),
+        )
+        for row in rows
+    }
+
+
+def save_device_profile(profile: DeviceProfile, updated_at: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO device_profiles (site_id, entity_id, display_name, "
+            "appliance_type, rated_power_w, estimation_enabled, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT (site_id, entity_id) DO UPDATE SET "
+            "display_name=excluded.display_name, appliance_type=excluded.appliance_type, "
+            "rated_power_w=excluded.rated_power_w, "
+            "estimation_enabled=excluded.estimation_enabled, updated_at=excluded.updated_at",
+            (
+                SITE_ID, profile.entity_id, profile.display_name,
+                profile.appliance_type, profile.rated_power_w,
+                1 if profile.estimation_enabled else 0, updated_at,
+            ),
+        )
+
+
+def delete_device_profile(entity_id: str) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "DELETE FROM device_profiles WHERE site_id = ? AND entity_id = ?",
+            (SITE_ID, entity_id),
+        )
 
 
 def snapshot_count() -> int:

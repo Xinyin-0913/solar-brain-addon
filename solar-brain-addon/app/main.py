@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
     poller.cancel()
 
 
-app = FastAPI(title="Solar Brain", version="0.5.2", lifespan=lifespan)
+app = FastAPI(title="Solar Brain", version="0.5.3", lifespan=lifespan)
 
 
 @app.exception_handler(Exception)

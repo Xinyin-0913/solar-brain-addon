@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.3
+
+**Fix: Supervisor was not injecting any token into the container.**
+
+- Root cause: `homeassistant_api: true` grants permission to call the Home
+  Assistant Core API proxy, but it does **not** by itself cause the
+  Supervisor to provide a `SUPERVISOR_TOKEN`. Without a token the proxy
+  grant is unusable, so the add-on stayed in `mode=local
+  auth=not_configured` and telemetry endpoints returned 503.
+- Added `hassio_api: true` to config.yaml. This makes the Supervisor inject
+  `SUPERVISOR_TOKEN`, which the existing 0.5.2 detection then uses.
+- `hassio_role` is intentionally left at the default (least privilege): the
+  add-on only reads the HA Core API and never calls Supervisor management
+  endpoints, so `manager`/`admin` are not needed.
+- No code changes - 0.5.2's token detection was already correct; only the
+  add-on permissions were missing.
+- **Applying this requires a Rebuild** (or Uninstall + Reinstall), not just
+  a Restart - see the README/notes, permission changes take effect only
+  when the Supervisor recreates the container.
+
 ## 0.5.2
 
 **Fix: add-on stuck in local mode inside Home Assistant.**

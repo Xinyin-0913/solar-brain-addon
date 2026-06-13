@@ -1,5 +1,5 @@
 name: Solar Brain
-version: "0.5.2"
+version: "0.5.3"
 slug: solar_brain
 description: Smart solar energy recommendations for your home (MVP)
 url: https://github.com/your-username/solar-brain-addons
@@ -10,6 +10,11 @@ init: false
 startup: application
 boot: auto
 homeassistant_api: true
+# hassio_api triggers the Supervisor to inject SUPERVISOR_TOKEN into the
+# container. homeassistant_api alone grants Core-proxy permission but no
+# token, so the proxy is unusable without this. Role left at the default
+# (least privilege) - we only read the HA Core API, never manage anything.
+hassio_api: true
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:solar-power

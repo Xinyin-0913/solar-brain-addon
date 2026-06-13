@@ -72,11 +72,12 @@ async def _poll_telemetry_loop() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     database.init_db()
-    poller = asyncio.create_task(_poll_telemetry_loop())
+    await ha_client.log_startup_diagnostics()
     logger.info(
         "Runtime: mode=%s auth=%s (%s)",
         ha_client.mode, ha_client.auth, ha_client.connection_message,
     )
+    poller = asyncio.create_task(_poll_telemetry_loop())
     logger.info(
         "Solar Brain started (location=%s, ai=%s, poll=%ss)",
         f"{config.latitude},{config.longitude}" if config.has_location else "not set",
@@ -87,7 +88,7 @@ async def lifespan(app: FastAPI):
     poller.cancel()
 
 
-app = FastAPI(title="Solar Brain", version="0.5.1", lifespan=lifespan)
+app = FastAPI(title="Solar Brain", version="0.5.2", lifespan=lifespan)
 
 
 @app.exception_handler(Exception)

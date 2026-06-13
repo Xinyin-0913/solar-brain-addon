@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.2
+
+**Fix: add-on stuck in local mode inside Home Assistant.**
+
+- The client now also accepts the legacy `HASSIO_TOKEN` environment
+  variable, not just `SUPERVISOR_TOKEN`. Older Supervisor versions inject
+  only `HASSIO_TOKEN`, which left the add-on falling through to local mode
+  (`mode=local auth=not_configured`, telemetry endpoints returning 503).
+- Runtime status now reports `auth=supervisor` (was `supervisor_token`).
+- Added startup diagnostics that log, without secrets: which token env
+  vars are present, the resolved `mode`/`auth`/`token_source`, the HA API
+  base URL (`http://supervisor/core/api`), and whether the startup API
+  ping succeeded. This makes connection problems self-evident in the log.
+- No endpoint changes: `/api/entities/discover` and
+  `/api/telemetry/current` already call `GET .../api/states` through the
+  resolved base URL.
+
 ## 0.5.1
 
 **Build fix — installable on real Home Assistant.**

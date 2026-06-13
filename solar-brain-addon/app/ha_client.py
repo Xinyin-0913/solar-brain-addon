@@ -2,9 +2,10 @@
 
 Connection resolution, in priority order:
 
-1. **Add-on mode** (SUPERVISOR_TOKEN present, injected by the Supervisor
-   because config.yaml sets ``homeassistant_api: true``): connects through
-   the Supervisor proxy automatically. No user configuration whatsoever.
+1. **Add-on mode**: the Supervisor injects a token (``SUPERVISOR_TOKEN`` on
+   current Supervisors, ``HASSIO_TOKEN`` on older ones) because config.yaml
+   sets ``homeassistant_api: true``. We reach Home Assistant through the
+   Supervisor proxy at ``http://supervisor/core/api``. No user config at all.
 2. **Local dev mode** with HOME_ASSISTANT_URL + HOME_ASSISTANT_TOKEN env
    vars (a long-lived access token) - for debugging outside HA only.
 3. **Not configured**: telemetry endpoints return 503 with guidance.
@@ -33,28 +34,80 @@ MSG_LOCAL = "Home Assistant connection requires local dev token."
 
 class HomeAssistantClient:
     def __init__(self, config: AddonConfig):
-        supervisor_token = os.getenv("SUPERVISOR_TOKEN", "")
+        # Capture token presence for startup diagnostics (never the values).
+        self.supervisor_token_present = bool(os.getenv("SUPERVISOR_TOKEN"))
+        self.hassio_token_present = bool(os.getenv("HASSIO_TOKEN"))
+
+        # Accept either token name: SUPERVISOR_TOKEN (current) or the legacy
+        # HASSIO_TOKEN (older Supervisor versions inject only this one).
+        supervisor_token = os.getenv("SUPERVISOR_TOKEN") or os.getenv("HASSIO_TOKEN") or ""
+
         if supervisor_token:
             # Inside the add-on the Supervisor always wins; manual URL/token
             # are deliberately ignored (they are a local-dev facility).
             self.mode = "addon"
-            self.auth = "supervisor_token"
+            self.auth = "supervisor"
+            self.token_source = (
+                "SUPERVISOR_TOKEN" if self.supervisor_token_present else "HASSIO_TOKEN"
+            )
             self._base_url = SUPERVISOR_CORE_URL
             self._token = supervisor_token
         elif config.home_assistant_url and config.home_assistant_token:
             self.mode = "local"
             self.auth = "manual_token"
+            self.token_source = "HOME_ASSISTANT_TOKEN"
             self._base_url = config.home_assistant_url.rstrip("/")
             self._token = config.home_assistant_token
         else:
             self.mode = "local"
             self.auth = "not_configured"
+            self.token_source = "none"
             self._base_url = ""
             self._token = ""
 
     @property
     def is_configured(self) -> bool:
         return bool(self._base_url and self._token)
+
+    @property
+    def base_url(self) -> str:
+        """HA REST API base, e.g. http://supervisor/core/api (empty if none)."""
+        return f"{self._base_url}/api" if self._base_url else ""
+
+    async def log_startup_diagnostics(self) -> bool:
+        """Log exactly how HA access was resolved, and whether it responds.
+
+        Returns the live reachability result. Logs token *presence* only -
+        never the secret values.
+        """
+        logger.info(
+            "HA detect: SUPERVISOR_TOKEN present=%s, HASSIO_TOKEN present=%s",
+            self.supervisor_token_present,
+            self.hassio_token_present,
+        )
+        logger.info(
+            "HA detect: mode=%s auth=%s token_source=%s base_url=%s",
+            self.mode,
+            self.auth,
+            self.token_source,
+            self.base_url or "(none)",
+        )
+        if not self.is_configured:
+            logger.warning(
+                "HA detect: no API access configured - /api/entities/discover "
+                "and /api/telemetry/current will return 503"
+            )
+            return False
+        reachable = await self.ping()
+        if reachable:
+            logger.info("HA detect: API ping to %s/ succeeded", self.base_url)
+        else:
+            logger.warning(
+                "HA detect: API ping to %s/ FAILED (Home Assistant may still "
+                "be starting; will retry on each request)",
+                self.base_url,
+            )
+        return reachable
 
     @property
     def connection_message(self) -> str:

@@ -57,12 +57,13 @@ def test_legacy_options_load_safely():
 
 
 def test_supervisor_still_wins_over_legacy(config: AddonConfig):
-    """An upgraded add-on install: legacy token present AND supervisor token."""
+    """An upgraded add-on install: legacy options present AND supervisor token."""
+    os.environ.pop("HASSIO_TOKEN", None)
     os.environ["SUPERVISOR_TOKEN"] = "supervisor-secret"
     try:
         client = HomeAssistantClient(config)
         assert client.mode == "addon", client.mode
-        assert client.auth == "supervisor_token", client.auth
+        assert client.auth == "supervisor", client.auth
         assert client._base_url == SUPERVISOR_CORE_URL, client._base_url
         assert client._token == "supervisor-secret"
     finally:

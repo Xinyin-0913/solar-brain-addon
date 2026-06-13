@@ -2,10 +2,13 @@
 
 Connection resolution, in priority order:
 
-1. **Add-on mode**: the Supervisor injects a token (``SUPERVISOR_TOKEN`` on
-   current Supervisors, ``HASSIO_TOKEN`` on older ones) because config.yaml
-   sets ``homeassistant_api: true``. We reach Home Assistant through the
-   Supervisor proxy at ``http://supervisor/core/api``. No user config at all.
+1. **Add-on mode**: the Supervisor provides a token under ``SUPERVISOR_TOKEN``
+   (current) or ``HASSIO_TOKEN`` (legacy). On the HA base images, s6-overlay
+   captures the container environment into files and does NOT re-export it to
+   our process, so the token is read from the environment first and then from
+   the s6 container-environment files as a fallback. We reach Home Assistant
+   through the Supervisor proxy at ``http://supervisor/core/api``. No user
+   config at all.
 2. **Local dev mode** with HOME_ASSISTANT_URL + HOME_ASSISTANT_TOKEN env
    vars (a long-lived access token) - for debugging outside HA only.
 3. **Not configured**: telemetry endpoints return 503 with guidance.
@@ -13,16 +16,29 @@ Connection resolution, in priority order:
 Read-only helpers only - no hardware control.
 """
 
+import json
 import logging
 import os
+from pathlib import Path
 
 import httpx
 
-from .models import AddonConfig
+from .models import OPTIONS_FILE, AddonConfig
 
 logger = logging.getLogger("solar_brain.ha")
 
 SUPERVISOR_CORE_URL = "http://supervisor/core"
+
+# Token env var names the Supervisor may use, in preference order.
+TOKEN_ENV_VARS = ("SUPERVISOR_TOKEN", "HASSIO_TOKEN")
+
+# s6-overlay stores the container environment here (v3 uses /run, v2 /var/run).
+# The token is set on the container by the Supervisor but only lives in these
+# files unless the process is launched with-contenv - so we read them directly.
+S6_ENV_DIRS = (
+    "/run/s6/container_environment",
+    "/var/run/s6/container_environment",
+)
 
 MSG_ADDON = "Connected via Home Assistant Supervisor."
 MSG_ADDON_RECONNECTING = (
@@ -32,26 +48,45 @@ MSG_ADDON_RECONNECTING = (
 MSG_LOCAL = "Home Assistant connection requires local dev token."
 
 
+def _read_s6_env(name: str) -> str:
+    """Read one container-environment variable from the s6 files, or ''."""
+    for directory in S6_ENV_DIRS:
+        path = Path(directory) / name
+        try:
+            if path.is_file():
+                value = path.read_text().strip()
+                if value:
+                    return value
+        except OSError:
+            continue
+    return ""
+
+
+def _resolve_supervisor_token() -> tuple[str, str]:
+    """Find the Supervisor token. Returns (token, source) or ('', '')."""
+    for name in TOKEN_ENV_VARS:
+        value = os.getenv(name)
+        if value:
+            return value, name
+    for name in TOKEN_ENV_VARS:
+        value = _read_s6_env(name)
+        if value:
+            return value, f"{name} (s6 file)"
+    return "", ""
+
+
 class HomeAssistantClient:
     def __init__(self, config: AddonConfig):
-        # Capture token presence for startup diagnostics (never the values).
-        self.supervisor_token_present = bool(os.getenv("SUPERVISOR_TOKEN"))
-        self.hassio_token_present = bool(os.getenv("HASSIO_TOKEN"))
+        token, source = _resolve_supervisor_token()
 
-        # Accept either token name: SUPERVISOR_TOKEN (current) or the legacy
-        # HASSIO_TOKEN (older Supervisor versions inject only this one).
-        supervisor_token = os.getenv("SUPERVISOR_TOKEN") or os.getenv("HASSIO_TOKEN") or ""
-
-        if supervisor_token:
+        if token:
             # Inside the add-on the Supervisor always wins; manual URL/token
             # are deliberately ignored (they are a local-dev facility).
             self.mode = "addon"
             self.auth = "supervisor"
-            self.token_source = (
-                "SUPERVISOR_TOKEN" if self.supervisor_token_present else "HASSIO_TOKEN"
-            )
+            self.token_source = source
             self._base_url = SUPERVISOR_CORE_URL
-            self._token = supervisor_token
+            self._token = token
         elif config.home_assistant_url and config.home_assistant_token:
             self.mode = "local"
             self.auth = "manual_token"
@@ -74,23 +109,64 @@ class HomeAssistantClient:
         """HA REST API base, e.g. http://supervisor/core/api (empty if none)."""
         return f"{self._base_url}/api" if self._base_url else ""
 
+    def safe_runtime_diagnostics(self) -> dict:
+        """Diagnostics for logging and /api/debug/runtime.
+
+        Contains NO secret values - only names, presence flags, and the
+        already-public mode/auth/base_url. Safe to expose and to log.
+        """
+        # Env var NAMES (never values) that hint at HA/Supervisor tokens.
+        env_keys = sorted(
+            k for k in os.environ
+            if any(s in k.upper() for s in ("TOKEN", "HASSIO", "SUPERVISOR"))
+        )
+        s6_dirs: dict[str, list[str]] = {}
+        for directory in S6_ENV_DIRS:
+            try:
+                if os.path.isdir(directory):
+                    s6_dirs[directory] = sorted(os.listdir(directory))
+            except OSError:
+                continue
+        options = {"path": str(OPTIONS_FILE), "exists": OPTIONS_FILE.exists()}
+        if OPTIONS_FILE.exists():
+            try:
+                options["keys"] = sorted(json.loads(OPTIONS_FILE.read_text()).keys())
+            except (OSError, ValueError):
+                options["keys"] = "unreadable"
+        return {
+            "mode": self.mode,
+            "auth": self.auth,
+            "token_source": self.token_source,
+            "base_url": self.base_url,
+            "token_present": self.is_configured,
+            "env_keys_matching": env_keys,        # names only
+            "s6_container_environment": s6_dirs,  # dir -> [var names]
+            "options_json": options,              # path/exists/key names only
+        }
+
     async def log_startup_diagnostics(self) -> bool:
         """Log exactly how HA access was resolved, and whether it responds.
 
-        Returns the live reachability result. Logs token *presence* only -
-        never the secret values.
+        Returns the live reachability result. Logs token *presence* and key
+        *names* only - never the secret values.
         """
+        diag = self.safe_runtime_diagnostics()
         logger.info(
-            "HA detect: SUPERVISOR_TOKEN present=%s, HASSIO_TOKEN present=%s",
-            self.supervisor_token_present,
-            self.hassio_token_present,
+            "HA detect: mode=%s auth=%s token_source=%s base_url=%s token_present=%s",
+            diag["mode"], diag["auth"], diag["token_source"],
+            diag["base_url"] or "(none)", diag["token_present"],
         )
         logger.info(
-            "HA detect: mode=%s auth=%s token_source=%s base_url=%s",
-            self.mode,
-            self.auth,
-            self.token_source,
-            self.base_url or "(none)",
+            "HA detect: env keys matching TOKEN/HASSIO/SUPERVISOR: %s",
+            diag["env_keys_matching"] or "(none)",
+        )
+        logger.info(
+            "HA detect: s6 container_environment: %s",
+            diag["s6_container_environment"] or "(no s6 env dir found)",
+        )
+        logger.info(
+            "HA detect: /data/options.json exists=%s keys=%s",
+            diag["options_json"]["exists"], diag["options_json"].get("keys", "n/a"),
         )
         if not self.is_configured:
             logger.warning(

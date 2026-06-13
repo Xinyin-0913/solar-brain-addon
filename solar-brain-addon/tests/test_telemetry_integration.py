@@ -64,6 +64,15 @@ def main() -> None:
             assert st["ha_reachable"] is True, st  # mock HA is up
             print("PASS connection mode reporting")
 
+            # 0b. Debug runtime endpoint: safe diagnostics, no token values.
+            res = client.get("/api/debug/runtime")
+            assert res.status_code == 200, res.text
+            dbg = res.json()
+            assert dbg["mode"] == "local" and dbg["token_source"] == "HOME_ASSISTANT_TOKEN", dbg
+            assert dbg["token_present"] is True and dbg["reachable"] is True, dbg
+            assert "test-token" not in res.text, "debug endpoint leaked a token value"
+            print("PASS debug runtime endpoint")
+
             # 1. Discovery classifies the right entities at the top.
             res = client.get("/api/entities/discover")
             assert res.status_code == 200, res.text

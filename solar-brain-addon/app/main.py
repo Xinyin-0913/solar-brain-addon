@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
     poller.cancel()
 
 
-app = FastAPI(title="Solar Brain", version="0.5.3", lifespan=lifespan)
+app = FastAPI(title="Solar Brain", version="0.5.4", lifespan=lifespan)
 
 
 @app.exception_handler(Exception)
@@ -101,6 +101,14 @@ async def unhandled_exception_handler(request, exc):
 async def health() -> dict:
     """Liveness check used by the Supervisor watchdog."""
     return {"status": "ok"}
+
+
+@app.get("/api/debug/runtime")
+async def api_debug_runtime() -> dict:
+    """Safe runtime diagnostics: how HA access resolved. No secret values."""
+    diag = ha_client.safe_runtime_diagnostics()
+    diag["reachable"] = await ha_client.ping()
+    return diag
 
 
 # --- Pages -----------------------------------------------------------------

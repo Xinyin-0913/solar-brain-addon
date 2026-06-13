@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.4
+
+**Fix: read the Supervisor token from s6 container-environment files.**
+
+- Root cause of the token never appearing: the Home Assistant base images
+  use s6-overlay as init, which captures the container environment into
+  `/run/s6/container_environment/` and does not re-export it to our process
+  unless launched with-contenv. The Supervisor *was* providing
+  `SUPERVISOR_TOKEN`, but `os.getenv` could not see it.
+- Token resolution now checks, in order: `SUPERVISOR_TOKEN` env,
+  `HASSIO_TOKEN` env, then the same names under
+  `/run/s6/container_environment/` and `/var/run/s6/container_environment/`.
+- Startup log now also reports: env var *names* containing
+  TOKEN/HASSIO/SUPERVISOR (never values), the contents (names only) of the
+  s6 container-environment dirs, and whether `/data/options.json` exists
+  with its key names.
+- New `GET /api/debug/runtime` returns safe diagnostics only: mode, auth,
+  token_source, base_url, token_present, matching env key names, s6 env dir
+  listing, and options.json key names. No secret values are ever included.
+- config.yaml keeps both `homeassistant_api: true` and `hassio_api: true`.
+
 ## 0.5.3
 
 **Fix: Supervisor was not injecting any token into the container.**

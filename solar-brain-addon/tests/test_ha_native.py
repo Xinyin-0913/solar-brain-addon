@@ -12,10 +12,12 @@ Run from solar-brain-addon/:  python tests/test_ha_native.py
 import asyncio
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app import ha_client as ha
 from app.ha_client import (
     MSG_ADDON,
     MSG_ADDON_RECONNECTING,
@@ -75,6 +77,48 @@ def test_legacy_hassio_token_fallback():
     print("PASS legacy HASSIO_TOKEN fallback -> add-on mode")
 
 
+def test_s6_container_environment_fallback():
+    """Token only in the s6 container-environment file (the real add-on case)."""
+    clear_supervisor_env()
+    tmp = Path(tempfile.mkdtemp(prefix="s6_env_"))
+    (tmp / "SUPERVISOR_TOKEN").write_text("token-from-s6-file\n")
+    original = ha.S6_ENV_DIRS
+    ha.S6_ENV_DIRS = (str(tmp),)
+    try:
+        c = HomeAssistantClient(EMPTY)
+        assert c.mode == "addon" and c.auth == "supervisor", (c.mode, c.auth)
+        assert c.token_source == "SUPERVISOR_TOKEN (s6 file)", c.token_source
+        assert c._token == "token-from-s6-file", c._token
+        assert c.is_configured
+        # Diagnostics expose the dir + file NAME, never the value.
+        diag = c.safe_runtime_diagnostics()
+        assert str(tmp) in diag["s6_container_environment"], diag
+        assert "SUPERVISOR_TOKEN" in diag["s6_container_environment"][str(tmp)]
+        assert "token-from-s6-file" not in repr(diag), "diagnostics leaked a token value"
+    finally:
+        ha.S6_ENV_DIRS = original
+        clear_supervisor_env()
+    print("PASS s6 container_environment file fallback")
+
+
+def test_env_var_wins_over_s6_file():
+    """A real env var takes precedence over the s6 file."""
+    clear_supervisor_env()
+    tmp = Path(tempfile.mkdtemp(prefix="s6_env_"))
+    (tmp / "SUPERVISOR_TOKEN").write_text("file-token")
+    os.environ["SUPERVISOR_TOKEN"] = "env-token"
+    original = ha.S6_ENV_DIRS
+    ha.S6_ENV_DIRS = (str(tmp),)
+    try:
+        c = HomeAssistantClient(EMPTY)
+        assert c.token_source == "SUPERVISOR_TOKEN", c.token_source
+        assert c._token == "env-token", c._token
+    finally:
+        ha.S6_ENV_DIRS = original
+        clear_supervisor_env()
+    print("PASS env var precedence over s6 file")
+
+
 def test_local_dev_token_mode():
     clear_supervisor_env()
     c = HomeAssistantClient(MANUAL)
@@ -124,6 +168,8 @@ def test_status_messages():
 if __name__ == "__main__":
     test_supervisor_token_mode()
     test_legacy_hassio_token_fallback()
+    test_s6_container_environment_fallback()
+    test_env_var_wins_over_s6_file()
     test_local_dev_token_mode()
     test_no_token_offline_mode()
     test_status_messages()

@@ -21,6 +21,12 @@ logic (no hardware control yet).
   formulas shown next to every number, and transparency warnings (low data
   coverage, default tariff, missing system cost); API:
   `GET /api/savings/detail?period=today|week|month|lifetime`
+- **Smart Home Energy**: `/devices` page and `GET /api/devices` show
+  per-device electricity usage and cost (lights, switches, power/energy
+  sensors, batteries) - works with or without a PV system. Measured devices
+  use real sensors; estimated devices use configurable default wattages
+  (`default_wattage_light`, `default_wattage_smart_plug`,
+  `default_wattage_motion_sensor`)
 - `GET /api/status` — add-on status, time, location, current recommendation
 - `GET /api/recommendation` — recommendation with action, risk level, reason
 - `GET /api/entities/discover` / `GET|POST /api/entities/mapping`

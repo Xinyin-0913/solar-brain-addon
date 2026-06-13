@@ -139,10 +139,10 @@ DASHBOARD_HTML = f"""<!DOCTYPE html>
   </div>
 
   <footer>
+    <a href="devices">Smart home energy</a> &middot;
     <a href="savings">Savings details</a> &middot;
     <a href="settings/entities">Entity mapping</a> &middot;
     <a href="api/status">/api/status</a> &middot;
-    <a href="api/recommendation">/api/recommendation</a> &middot;
     <a href="api/telemetry/current">/api/telemetry/current</a>
   </footer>
 </div>
@@ -402,6 +402,133 @@ setInterval(() => {{
   const on = document.querySelector('#seg button.on');
   load(on ? on.dataset.p : 'today');
 }}, 60000);
+</script>
+</body>
+</html>
+"""
+
+DEVICES_HTML = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solar Brain &middot; Smart home energy</title>
+<style>
+{_BASE_CSS}
+  .summary {{ display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }}
+  .summary .v {{ font-size: 20px; font-weight: 700; }}
+  .v.eur {{ color: var(--low); }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+  th, td {{ text-align: right; padding: 9px 10px; border-bottom: 1px solid #232a35; }}
+  th {{ color: var(--muted); font-size: 11px; text-transform: uppercase;
+        letter-spacing: 1px; font-weight: 600; }}
+  th:first-child, td:first-child, th:nth-child(3), td:nth-child(3),
+  th:nth-child(4), td:nth-child(4) {{ text-align: left; }}
+  td.name {{ font-weight: 600; }}
+  td.ent {{ color: var(--muted); font-size: 11px; }}
+  .tag {{ display: inline-block; padding: 2px 9px; border-radius: 999px;
+          font-size: 11px; font-weight: 600; }}
+  .tag.measured {{ background: rgba(62,207,142,.13); color: var(--low); }}
+  .tag.estimated {{ background: rgba(242,178,45,.13); color: var(--medium); }}
+  .tag.none {{ background: #232a35; color: var(--muted); }}
+  td.eur {{ color: var(--low); }}
+  tr.batt td.eur {{ color: var(--muted); }}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">&#128268;</div>
+    <div>
+      <h1>Smart home energy</h1>
+      <small>Per-device electricity usage &amp; cost &mdash; works without solar</small>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>Totals</h2>
+    <div class="summary">
+      <div><div class="label">Current power</div><div class="v" id="t-power">&hellip;</div></div>
+      <div><div class="label">Today</div><div class="v" id="t-today-kwh">&hellip;</div></div>
+      <div><div class="label">This month</div><div class="v" id="t-month-kwh">&hellip;</div></div>
+      <div><div class="label">Today cost</div><div class="v eur" id="t-today-eur">&hellip;</div></div>
+      <div><div class="label">Month cost</div><div class="v eur" id="t-month-eur">&hellip;</div></div>
+    </div>
+    <div class="muted" id="dev-note" style="margin-top:14px;font-size:12px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Devices</h2>
+    <table>
+      <thead><tr>
+        <th>Device</th><th>Entity</th><th>Type</th><th>Mode</th>
+        <th>Power</th><th>Today kWh</th><th>Month kWh</th>
+        <th>Today &euro;</th><th>Month &euro;</th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="9" class="muted">Loading&hellip;</td></tr></tbody>
+    </table>
+  </div>
+
+  <footer><a href="./">&larr; Back to dashboard</a></footer>
+</div>
+
+<script>
+const W = v => (v === null || v === undefined) ? '\\u2014'
+  : (Math.abs(v) >= 1000 ? (v/1000).toFixed(2)+' kW' : Math.round(v)+' W');
+const EUR = v => '\\u20ac ' + v.toFixed(2);
+const KWH = v => v.toFixed(2);
+
+async function load() {{
+  const note = document.getElementById('dev-note');
+  try {{
+    const res = await fetch('api/devices');
+    if (!res.ok) {{
+      const b = await res.json().catch(() => ({{}}));
+      note.textContent = b.detail || 'Devices unavailable.';
+      return;
+    }}
+    const d = await res.json();
+    document.getElementById('t-power').textContent = W(d.totals_current_power_w);
+    document.getElementById('t-today-kwh').textContent = KWH(d.totals_today_kwh) + ' kWh';
+    document.getElementById('t-month-kwh').textContent = KWH(d.totals_month_kwh) + ' kWh';
+    document.getElementById('t-today-eur').textContent = EUR(d.totals_today_cost_eur);
+    document.getElementById('t-month-eur').textContent = EUR(d.totals_month_cost_eur);
+
+    const tbody = document.getElementById('rows');
+    if (!d.devices.length) {{
+      tbody.innerHTML = '<tr><td colspan="9" class="muted">No lights, switches, ' +
+        'power, energy or battery entities found in Home Assistant.</td></tr>';
+    }} else {{
+      tbody.innerHTML = d.devices.map(u => {{
+        const battClass = u.device_type === 'battery' ? ' class="batt"' : '';
+        return `<tr${{battClass}}>
+          <td class="name" title="${{u.note}}">${{u.name}}</td>
+          <td class="ent">${{u.entity_id}}</td>
+          <td>${{u.device_type.replace('_',' ')}}</td>
+          <td><span class="tag ${{u.mode}}">${{u.mode}}</span></td>
+          <td>${{W(u.current_power_w)}}</td>
+          <td>${{KWH(u.today_kwh)}}</td>
+          <td>${{KWH(u.month_kwh)}}</td>
+          <td class="eur">${{EUR(u.today_cost_eur)}}</td>
+          <td class="eur">${{EUR(u.month_cost_eur)}}</td>
+        </tr>`;
+      }}).join('');
+    }}
+
+    let info = d.device_count + ' devices (' + d.measured_count + ' measured, ' +
+      d.estimated_count + ' estimated) \\u00b7 tariff \\u20ac ' +
+      d.import_price_eur_per_kwh.toFixed(2) + '/kWh';
+    info += d.measured_since
+      ? ' \\u00b7 measured since ' + new Date(d.measured_since).toLocaleDateString()
+      : ' \\u00b7 no history yet \\u2014 totals fill in as the add-on runs';
+    note.textContent = info;
+  }} catch (err) {{
+    note.textContent = 'Failed to load devices: ' + err;
+  }}
+}}
+
+load();
+setInterval(load, 60000);
 </script>
 </body>
 </html>

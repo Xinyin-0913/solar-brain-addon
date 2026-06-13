@@ -48,12 +48,16 @@ def _parse_value(state_obj: dict, role: str) -> float | None:
     return value
 
 
-async def build_snapshot(ha_client: HomeAssistantClient) -> TelemetrySnapshot | None:
+async def build_snapshot(
+    ha_client: HomeAssistantClient, states: list[dict] | None = None
+) -> TelemetrySnapshot | None:
     """Build a normalized snapshot from current HA states.
 
-    Returns None when Home Assistant is unreachable/not configured.
+    Pass ``states`` to reuse an already-fetched list (the poller does this);
+    otherwise they are fetched here. Returns None when HA is unreachable.
     """
-    states = await ha_client.get_states()
+    if states is None:
+        states = await ha_client.get_states()
     if states is None:
         return None
 

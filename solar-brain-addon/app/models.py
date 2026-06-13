@@ -26,6 +26,10 @@ class AddonConfig(BaseModel):
     feed_in_tariff_eur_per_kwh: float = 0.08
     system_cost_eur: float = 0.0
     installation_date: str = ""  # YYYY-MM-DD, informational
+    # Default wattages for estimated-mode devices (no power sensor).
+    default_wattage_light: float = 9.0
+    default_wattage_smart_plug: float = 1.0
+    default_wattage_motion_sensor: float = 0.1
     openrouter_api_key: str = ""
     enable_ai: bool = False
 
@@ -58,6 +62,13 @@ class AddonConfig(BaseModel):
             ),
             system_cost_eur=float(os.getenv("SYSTEM_COST_EUR", "0") or 0),
             installation_date=os.getenv("INSTALLATION_DATE", ""),
+            default_wattage_light=float(os.getenv("DEFAULT_WATTAGE_LIGHT", "9") or 9),
+            default_wattage_smart_plug=float(
+                os.getenv("DEFAULT_WATTAGE_SMART_PLUG", "1") or 1
+            ),
+            default_wattage_motion_sensor=float(
+                os.getenv("DEFAULT_WATTAGE_MOTION_SENSOR", "0.1") or 0.1
+            ),
             openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
             enable_ai=os.getenv("ENABLE_AI", "false").lower() in ("1", "true", "yes"),
         )
@@ -224,3 +235,42 @@ class SavingsSummary(BaseModel):
     measured_since: str | None                # ts of first telemetry snapshot
     installation_date: str | None
     prices: SavingsPrices
+
+
+# --- Smart home energy (per-device) ------------------------------------------
+
+# Device types classified from HA entity domain/unit/device_class.
+DEVICE_TYPES = ["light", "switch", "power_sensor", "energy_sensor", "motion", "battery"]
+
+
+class DeviceUsage(BaseModel):
+    """One device row in the Smart Home Energy table."""
+
+    entity_id: str
+    name: str
+    device_type: str               # one of DEVICE_TYPES
+    mode: str                      # "measured" | "estimated" | "none"
+    estimated_wattage: float | None  # configured W for estimated devices
+    current_power_w: float | None    # live; None for cumulative energy sensors
+    today_kwh: float
+    month_kwh: float
+    today_cost_eur: float
+    month_cost_eur: float
+    note: str = ""                 # e.g. "battery powered - no grid cost"
+
+
+class DevicesResponse(BaseModel):
+    """Response model for GET /api/devices."""
+
+    timestamp: str
+    import_price_eur_per_kwh: float
+    device_count: int
+    measured_count: int
+    estimated_count: int
+    devices: list[DeviceUsage]
+    totals_today_kwh: float
+    totals_month_kwh: float
+    totals_today_cost_eur: float
+    totals_month_cost_eur: float
+    totals_current_power_w: float
+    measured_since: str | None     # first device sample ts

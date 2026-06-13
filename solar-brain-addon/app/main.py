@@ -8,16 +8,17 @@ persisted to SQLite.
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from . import database, entity_discovery, savings, telemetry, ui
+from . import database, devices, entity_discovery, savings, telemetry, ui
 from .ha_client import HomeAssistantClient
 from .models import (
     TELEMETRY_ROLES,
     AddonConfig,
+    DevicesResponse,
     MappingUpdate,
     Recommendation,
     SavingsCurrent,
@@ -55,18 +56,51 @@ else:
     )
 
 
+DEVICE_SAMPLE_RETENTION_DAYS = 40
+
+
 async def _poll_telemetry_loop() -> None:
-    """Persist a telemetry snapshot every TELEMETRY_POLL_SECONDS."""
+    """Every cycle: sample devices, and snapshot PV telemetry if mapped.
+
+    States are fetched once and shared. Device sampling runs even when no PV
+    entities are mapped, so the Smart Home Energy view works without a PV
+    system.
+    """
     while True:
         await asyncio.sleep(TELEMETRY_POLL_SECONDS)
         try:
-            if not ha_client.is_configured or not database.get_mappings():
+            if not ha_client.is_configured:
                 continue
-            snapshot = await telemetry.build_snapshot(ha_client)
-            if snapshot is not None:
-                database.insert_snapshot(snapshot)
+            states = await ha_client.get_states()
+            if states is None:
+                continue
+
+            _sample_devices(states)
+
+            if database.get_mappings():
+                snapshot = await telemetry.build_snapshot(ha_client, states=states)
+                if snapshot is not None:
+                    database.insert_snapshot(snapshot)
         except Exception:
             logger.exception("Telemetry poll failed")
+
+
+def _sample_devices(states: list[dict]) -> None:
+    """Persist one power/energy sample per discovered device; prune old rows."""
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    rows: list[tuple[str, str, float | None, float | None]] = []
+    for state in states:
+        device = devices.classify_device(state, config)
+        if device is None:
+            continue
+        power_w, energy_kwh = devices.make_sample(device, state)
+        rows.append((ts, device["entity_id"], power_w, energy_kwh))
+    database.insert_device_samples(rows)
+
+    cutoff = (
+        datetime.now(timezone.utc) - timedelta(days=DEVICE_SAMPLE_RETENTION_DAYS)
+    ).isoformat(timespec="seconds")
+    database.prune_device_samples(cutoff)
 
 
 @asynccontextmanager
@@ -88,7 +122,7 @@ async def lifespan(app: FastAPI):
     poller.cancel()
 
 
-app = FastAPI(title="Solar Brain", version="0.5.4", lifespan=lifespan)
+app = FastAPI(title="Solar Brain", version="0.6.0", lifespan=lifespan)
 
 
 @app.exception_handler(Exception)
@@ -127,6 +161,11 @@ async def settings_entities() -> str:
 @app.get("/savings", response_class=HTMLResponse)
 async def savings_page() -> str:
     return ui.SAVINGS_HTML
+
+
+@app.get("/devices", response_class=HTMLResponse)
+async def devices_page() -> str:
+    return ui.DEVICES_HTML
 
 
 # --- Entity discovery & mapping ---------------------------------------------
@@ -191,6 +230,55 @@ async def api_save_mapping(update: MappingUpdate) -> dict:
 
 
 # --- Telemetry ---------------------------------------------------------------
+
+
+@app.get("/api/devices", response_model=DevicesResponse)
+async def api_devices() -> DevicesResponse:
+    """Per-device electricity usage and cost (works without a PV system)."""
+    states = await ha_client.get_states()
+    if states is None:
+        raise HTTPException(status_code=503, detail=HA_UNAVAILABLE_DETAIL)
+
+    now = datetime.now(timezone.utc)
+    today_start, month_start = devices._period_starts_utc(now)
+    states_by_id = {s.get("entity_id"): s for s in states}
+    discovered = devices.discover_devices(states, config)
+
+    # One DB read for the whole month; split per device / per today in memory.
+    month_rows = database.get_device_samples_since(month_start)
+    by_entity: dict[str, list[dict]] = {}
+    for row in month_rows:
+        by_entity.setdefault(row["entity_id"], []).append(row)
+
+    price = config.electricity_import_price_eur_per_kwh
+    usages = []
+    for device in discovered:
+        eid = device["entity_id"]
+        month_samples = by_entity.get(eid, [])
+        today_samples = [r for r in month_samples if r["ts"] >= today_start]
+        usages.append(
+            devices.compute_device_usage(
+                device, states_by_id.get(eid), today_samples, month_samples, price
+            )
+        )
+
+    usages.sort(key=lambda u: u.month_cost_eur, reverse=True)
+    return DevicesResponse(
+        timestamp=now.isoformat(timespec="seconds"),
+        import_price_eur_per_kwh=price,
+        device_count=len(usages),
+        measured_count=sum(1 for u in usages if u.mode == "measured"),
+        estimated_count=sum(1 for u in usages if u.mode == "estimated"),
+        devices=usages,
+        totals_today_kwh=round(sum(u.today_kwh for u in usages), 3),
+        totals_month_kwh=round(sum(u.month_kwh for u in usages), 3),
+        totals_today_cost_eur=round(sum(u.today_cost_eur for u in usages), 2),
+        totals_month_cost_eur=round(sum(u.month_cost_eur for u in usages), 2),
+        totals_current_power_w=round(
+            sum(u.current_power_w or 0.0 for u in usages), 1
+        ),
+        measured_since=database.get_first_device_sample_ts(),
+    )
 
 
 @app.get("/api/telemetry/current", response_model=TelemetrySnapshot)

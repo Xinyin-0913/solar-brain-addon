@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.6.0
+
+**Smart Home Energy MVP - per-device usage and cost, with or without solar.**
+
+- New Smart Home Energy dashboard at `/devices` and `GET /api/devices`,
+  fully independent of the PV/solar entity mapping (works when no PV
+  entities are mapped at all).
+- Discovers and classifies HA entities: lights, switches, power sensors (W),
+  energy sensors (kWh), motion sensors, and battery sensors.
+- Two calculation modes per device:
+  - **measured**: power sensors are integrated over time; cumulative energy
+    sensors are differenced within the period.
+  - **estimated**: lights/switches/motion use a configured wattage x the
+    on-duration measured by the poller.
+- Configurable default wattages (add-on options): `default_wattage_light`
+  (9 W), `default_wattage_smart_plug` (1 W), `default_wattage_motion_sensor`
+  (0.1 W). Battery-only devices are shown with no grid cost.
+- Per-device table: Device | Entity | Type | Mode | Power | Today kWh |
+  Month kWh | Today EUR | Month EUR, plus totals. Cost uses the existing
+  `electricity_import_price_eur_per_kwh`.
+- The background poller now samples every discovered device each cycle
+  (gap-capped integration, same honest method as the savings engine; no
+  extrapolation) and prunes device samples older than 40 days.
+- Existing Solar/PV mapping, telemetry, and savings are untouched.
+
 ## 0.5.4
 
 **Fix: read the Supervisor token from s6 container-environment files.**

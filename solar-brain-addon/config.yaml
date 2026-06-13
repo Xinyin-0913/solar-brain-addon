@@ -1,5 +1,5 @@
 name: Solar Brain
-version: "0.5.4"
+version: "0.6.0"
 slug: solar_brain
 description: Smart solar energy recommendations for your home (MVP)
 url: https://github.com/your-username/solar-brain-addons
@@ -33,6 +33,9 @@ options:
   feed_in_tariff_eur_per_kwh: 0.08
   system_cost_eur: 0.0
   installation_date: ""
+  default_wattage_light: 9.0
+  default_wattage_smart_plug: 1.0
+  default_wattage_motion_sensor: 0.1
   openrouter_api_key: ""
   enable_ai: false
 schema:
@@ -42,5 +45,8 @@ schema:
   feed_in_tariff_eur_per_kwh: float
   system_cost_eur: float
   installation_date: str?
+  default_wattage_light: float
+  default_wattage_smart_plug: float
+  default_wattage_motion_sensor: float
   openrouter_api_key: password?
   enable_ai: bool

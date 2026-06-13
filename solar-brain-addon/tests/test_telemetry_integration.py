@@ -178,10 +178,22 @@ def main() -> None:
             assert client.get("/api/savings/detail?period=year").status_code == 422
             print("PASS savings detail endpoint")
 
-            # 9. Pages render.
+            # 9. Smart home energy: discovers light/switch/power without PV.
+            res = client.get("/api/devices")
+            assert res.status_code == 200, res.text
+            dev = res.json()
+            ids = {d["entity_id"]: d for d in dev["devices"]}
+            # mock_ha exposes solar/grid power sensors (W) -> measured devices.
+            assert dev["device_count"] >= 1, dev
+            assert any(d["mode"] == "measured" for d in dev["devices"]), dev
+            assert "import_price_eur_per_kwh" in dev, dev
+            print("PASS smart home energy endpoint")
+
+            # 10. Pages render.
             assert client.get("/").status_code == 200
             assert client.get("/settings/entities").status_code == 200
             assert client.get("/savings").status_code == 200
+            assert client.get("/devices").status_code == 200
             print("PASS pages render")
 
         print("\nALL TESTS PASSED")
